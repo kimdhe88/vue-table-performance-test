@@ -2,9 +2,11 @@ import axios from "axios";
 
 let defaultHost = "http://192.168.10.243:3000";
 
-async function getObjectData(limit) {
+async function getTablesObject(limit) {
   try {
-    let rows = await axios
+    console.log(`get tables`);
+    let startDate = new Date().getTime();
+    let data = await axios
       .get(`${defaultHost}/api/v1/tables?limit=${limit}`)
       .then((res) => {
         console.log("get data success");
@@ -15,7 +17,19 @@ async function getObjectData(limit) {
         console.log(err);
       });
 
-    return rows;
+    let result = new Object();
+    result.fields = new Array();
+    for (let idx in data.fields) result.fields.push(data.fields[idx].name);
+    console.log(1);
+
+    let endDate = new Date().getTime();
+    result.execTime = endDate - startDate; //두 시간차 계산(단위 ms)
+
+    result.rows = data.rows;
+
+    result.rowCount = data.rowCount;
+
+    return result;
   } catch (e) {
     throw e;
   }
@@ -23,6 +37,7 @@ async function getObjectData(limit) {
 
 async function getTables(limit) {
   try {
+    console.log(`get tables`);
     let startDate = new Date().getTime();
     let data = await axios
       .get(`${defaultHost}/api/v1/tables?limit=${limit}`)
@@ -73,4 +88,4 @@ async function rowsToArray(givenRows = Array) {
   }
 }
 
-export default { getTables };
+export default { getTablesObject, getTables };

@@ -13,7 +13,7 @@
             </div>
           </v-col>
 
-          <v-col cols="12" md="4"></v-col>
+          <v-col cols="12" md="4">query exec: {{execTime}} ms</v-col>
         </v-row>
 
         <v-row>
@@ -22,12 +22,11 @@
               <div>
                 <v-data-table
                   :height="500"
-                  :total-items="30"
                   :fixed-header="true"
                   :loading="isLoading"
                   :headers="headers"
-                  :items="bulkData"
-                  :items-per-page="15"
+                  :items="drawData"
+                  :items-per-page="-1"
                   class="elevation-1"
                 ></v-data-table>
               </div>
@@ -68,14 +67,11 @@ export default {
       if (this.isLoading) return;
       console.log(`get data start!!`);
       this.isLoading = true;
-      let data = await db.getTables(this.getRows);
+      let data = await db.getTablesObject(this.getRows);
       this.headers = await this.getHeaders(data.fields);
       this.rowCount = data.rowCount;
-      // console.log(this.headers);
-      this.data = data.rows;
+      this.drawData = data.rows;
       this.execTime = data.execTime;
-      // console.log(this.headers);
-      await this.moveBeginIndex(0);
       this.isLoading = false;
     },
 
@@ -90,43 +86,6 @@ export default {
       // console.log(headers);
 
       return headers;
-    },
-
-    async moveBeginIndex(num) {
-      // console.log(`num : ${num}`);
-      this.beginIndex += num;
-      this.maximumBeginIndex = this.rowCount - this.drawRowSize;
-
-      if (this.beginIndex <= 0) this.beginIndex = 0;
-      if (this.beginIndex > this.maximumBeginIndex)
-        this.beginIndex = this.maximumBeginIndex;
-
-      // console.log(`this.beginIndex : ${this.beginIndex}`);
-      // console.log(`this.maximumBeginIndex : ${this.maximumBeginIndex}`);
-
-      let tmpDrawData = new Array();
-
-      for (
-        let i = this.beginIndex;
-        i < this.beginIndex + this.drawRowSize;
-        i++
-      ) {
-        let tmpObject = new Object();
-        let tmpData = this.data[i];
-        // console.log(`tmpData`);
-        // console.log(tmpData);
-        for (let idx in tmpData) {
-          tmpObject[this.headers[idx].value] = tmpData[idx];
-        }
-        // console.log(`tmpObject`);
-        // console.log(tmpObject);
-        tmpDrawData.push(tmpObject);
-      }
-      // console.log(`tmpDrawData`);
-      // console.log(tmpDrawData);
-      this.drawData = tmpDrawData;
-      // console.log("this.drawData");
-      // console.log(this.drawData);
     },
   },
 };

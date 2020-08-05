@@ -1,8 +1,9 @@
 <template>
   <div id="app">
     <div id="nav">
-      <router-link to="/">Home</router-link>|
-      <router-link to="/new">new</router-link>
+      <router-link to="/">main</router-link>|
+      <router-link to="/about">memory</router-link>|
+      <router-link to="/new">bulk</router-link>
     </div>
     <router-view />
   </div>
