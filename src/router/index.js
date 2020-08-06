@@ -24,6 +24,11 @@ const routes = [
     name: "new",
     component: () => import("../views/New.vue"),
   },
+  {
+    path: "/ext",
+    name: "extra-option",
+    component: () => import("../views/extra-option.vue"),
+  },
 ];
 
 const router = new VueRouter({
