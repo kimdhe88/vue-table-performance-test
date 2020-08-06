@@ -33,13 +33,6 @@
             </div>
           </v-col>
         </v-row>
-
-        <v-row>
-          <v-col>
-            <v-slider v-model="beginIndex" :max="rowCount - drawRowSize" step="1"></v-slider>
-          </v-col>
-        </v-row>
-
         <v-row>
           <v-col>
             <v-btn color="warning" v-on:click="moveBeginIndex(-rowCount)">처음으로</v-btn>
@@ -69,8 +62,6 @@
 import axios from "axios";
 import db from "../modules/database";
 
-let database;
-
 export default {
   name: "App",
 
@@ -82,6 +73,7 @@ export default {
       getRows: "50",
       beginIndex: 0,
       rowCount: 0,
+      data: null,
       drawData: [{ sample: null }],
       drawRowSize: 10,
       headers: [{ text: "sample", value: "sample" }],
@@ -89,27 +81,19 @@ export default {
     };
   },
 
-  watch: {
-    beginIndex: function (newIndex) {
-      // console.log(`newIndex : ${newIndex}`);
-      this.refreshDrawData();
-    },
-  },
-
   methods: {
     async getData() {
       if (this.isLoading) return;
       console.log(`get data start!!`);
       this.isLoading = true;
-      let data = await db.getTableByReturnType("object", this.getRows);
+      let data = await db.getTables(this.getRows);
       this.headers = await this.getHeaders(data.fields);
       this.rowCount = data.rowCount;
       // console.log(this.headers);
-      database = data.rows;
+      this.data = data.rows;
       this.execTime = data.execTime;
       // console.log(this.headers);
-      this.setBeginIndex();
-      this.refreshDrawData();
+      await this.moveBeginIndex(0);
       this.isLoading = false;
     },
 
@@ -126,31 +110,35 @@ export default {
       return headers;
     },
 
-    async setBeginIndex() {
-      this.beginIndex = 0;
-    },
-
     async moveBeginIndex(num) {
+      // console.log(`num : ${num}`);
       this.beginIndex += num;
       this.maximumBeginIndex = this.rowCount - this.drawRowSize;
 
       if (this.beginIndex <= 0) this.beginIndex = 0;
       if (this.beginIndex > this.maximumBeginIndex)
         this.beginIndex = this.maximumBeginIndex;
-    },
 
-    async refreshDrawData() {
-      let drawDataTemp = new Array();
-      // for (
-      //   let i = this.beginIndex;
-      //   i < this.beginIndex + this.drawRowSize;
-      //   i++
-      // ) {
-      //   drawDataTemp.push(database[i]);
-      // }
-      let tmp = database.slice(this.beginIndex, this.beginIndex + 10);
-      // console.log(tmp);
-      this.drawData = tmp;
+      // console.log(`this.beginIndex : ${this.beginIndex}`);
+      // console.log(`this.maximumBeginIndex : ${this.maximumBeginIndex}`);
+
+      let tmpDrawData = new Array();
+
+      for (
+        let i = this.beginIndex;
+        i < this.beginIndex + this.drawRowSize;
+        i++
+      ) {
+        let tmpObject = new Object();
+        let tmpData = this.data[i];
+        // console.log(`tmpData`);
+        // console.log(tmpData);
+        for (let idx in tmpData) {
+          tmpObject[this.headers[idx].value] = tmpData[idx];
+        }
+        tmpDrawData.push(tmpObject);
+      }
+      this.drawData = tmpDrawData;
     },
   },
 };

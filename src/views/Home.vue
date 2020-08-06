@@ -59,6 +59,7 @@ export default {
       drawRowSize: 10,
       headers: [{ text: "sample", value: "sample" }],
       execTime: "",
+      nulldata: null,
     };
   },
 
@@ -67,7 +68,7 @@ export default {
       if (this.isLoading) return;
       console.log(`get data start!!`);
       this.isLoading = true;
-      let data = await db.getTablesObject(this.getRows);
+      let data = await db.getTableByReturnType("object", this.getRows);
       this.headers = await this.getHeaders(data.fields);
       this.rowCount = data.rowCount;
       this.drawData = data.rows;
