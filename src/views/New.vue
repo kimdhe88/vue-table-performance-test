@@ -35,15 +35,19 @@
         </v-row>
         <v-row>
           <v-col cols="12" md="12">
-            <div id="scroll-table">
+            <div
+              id="scroll-table"
+              @mousewheel="tableWheelEvent"
+              @mousedown="selectTable"
+              style="word-break:nowrap"
+            >
               <v-data-table
                 dense
-                :height="400"
                 :fixed-header="true"
                 :loading="isLoading"
                 :headers="headers"
                 :items="drawData"
-                :items-per-page="drawRowSize"
+                :items-per-page="-1"
                 class="elevation-1"
               ></v-data-table>
             </div>
@@ -75,27 +79,25 @@ export default {
   data() {
     return {
       isLoading: false,
-      getRows: 500,
+      getRows: 500000,
       beginIndex: 0,
       fetchCount: 0,
       drawCount: 0,
       drawData: [{ sample: null }],
-      drawRowSize: 10,
+      drawRowSize: 15,
       headers: [{ text: "sample", value: "sample" }],
       execTime: 0,
       search: "",
+      isObject: false,
+      mouseDownStack: 0,
     };
   },
 
   watch: {
     beginIndex: function (newIndex) {
-      // console.log(`newIndex : ${newIndex}`);
       this.refreshDrawData();
     },
-    search: function (newText) {
-      // console.log(`newIndex : ${newIndex}`);
-      // this.tableSearch(newText);
-    },
+    search: function (newText) {},
   },
 
   methods: {
@@ -105,14 +107,13 @@ export default {
       this.isLoading = true;
       let data = await db.getTableByReturnType("object", this.getRows);
       this.headers = await this.getHeaders(data.fields);
+      console.log(this.headers);
       this.fetchCount = data.rowCount;
       this.drawCount = data.rowCount;
-      // console.log(this.headers);
       database = data.rows;
       vDatabase = database;
 
       this.execTime = data.execTime;
-      // console.log(this.headers);
       this.setBeginIndex();
       this.setMaximumBeginIndex();
       this.refreshDrawData();
@@ -120,15 +121,14 @@ export default {
     },
 
     async getHeaders(fields = Array) {
-      // console.log(fields);
       let headers = new Array();
       for (let idx = 0; idx < fields.length; idx++) {
         headers[idx] = new Object();
         headers[idx].text = fields[idx];
         headers[idx].value = fields[idx];
+        headers[idx].width = "50px";
+        headers[idx].fixed = true;
       }
-      // console.log(headers);
-
       return headers;
     },
 
@@ -152,15 +152,11 @@ export default {
 
     async refreshDrawData() {
       // this.drawData = database.slice(this.beginIndex, this.beginIndex + 10);
-      this.drawData = vDatabase.slice(this.beginIndex, this.beginIndex + 10);
+      this.drawData = vDatabase.slice(
+        this.beginIndex,
+        this.beginIndex + this.drawRowSize
+      );
     },
-
-    // async refreshDrawData() {
-    //   let tmp = new Array();
-    //   for (let i = this.beginIndex; i < this.beginIndex + 10; i++)
-    //     tmp.push(vDatabase[i]);
-    //   this.drawData = tmp;
-    // },
 
     async tableSearch(searchText) {
       console.log(`table search`);
@@ -175,24 +171,38 @@ export default {
       this.refreshDrawData();
     },
 
-    async tableOrdering() {
-      database.sort(function (a, b) {
-        return a.seq < b.seq ? -1 : a.seq > b.seq ? 1 : 0;
-      });
+    async tableWheelEvent(event) {
+      // console.log(`table wheel : ${event.deltaY}`);
+      event.preventDefault();
+      if (event.deltaY > 0) this.moveBeginIndex(3);
+      else if (event.deltaY < 0) this.moveBeginIndex(-3);
+      event.initEvent();
+    },
+
+    async selectTable(event) {
+      this.mouseDownStack += 1;
     },
   },
 
   mounted() {
+    window.addEventListener("mousedown", (event) => {
+      // console.log(event);
+      this.mouseDownStack += 1;
+      if (this.mouseDownStack === 1) this.isObject = false;
+      else this.isObject = true;
+      this.mouseDownStack = 0;
+      // console.log(`target is Object? ${this.isObject}`);
+    });
+
     window.addEventListener("keydown", (event) => {
-      // event.preventDefault();
-      // console.log(`event.keyCode : ${event.keyCode}`);
-      // console.log();
+      if (!this.isObject) return; // 객체 선택 상태가 아니라면 패스
+
       if (event.keyCode === 33) {
         // console.log("Page up");
         event.preventDefault();
         if (event.altKey) this.moveBeginIndex(-this.drawCount);
         if (event.shiftKey) this.moveBeginIndex(-1000);
-        else this.moveBeginIndex(-10);
+        else this.moveBeginIndex(-16);
         event.initEvent();
       }
       if (event.keyCode === 34) {
@@ -200,7 +210,7 @@ export default {
         event.preventDefault();
         if (event.altKey) this.moveBeginIndex(this.drawCount);
         else if (event.shiftKey) this.moveBeginIndex(1000);
-        else this.moveBeginIndex(10);
+        else this.moveBeginIndex(16);
 
         event.initEvent();
       }
@@ -220,3 +230,16 @@ export default {
   },
 };
 </script>
+
+
+<style>
+.text-start {
+  overflow-y: hidden !important;
+  overflow-x: hidden !important;
+  white-space: nowrap !important;
+  max-width: 200px !important;
+}
+
+.tr {
+}
+</style>
