@@ -8,7 +8,7 @@
               v-on:keyup.enter="getData"
               v-model="getRows"
               :counter="10"
-              label="get rows"
+              label="조회 건수"
               required
             ></v-text-field>
           </v-col>
@@ -217,13 +217,17 @@ export default {
       if (event.keyCode === 38) {
         // console.log("Arrow up");
         event.preventDefault();
-        this.moveBeginIndex(-3);
+        if (event.ctrlKey) this.moveBeginIndex(-this.drawCount);
+        else if (event.shiftKey) this.moveBeginIndex(-1000);
+        else this.moveBeginIndex(-3);
         event.initEvent();
       }
       if (event.keyCode === 40) {
         // console.log("Arrow down");
         event.preventDefault();
-        this.moveBeginIndex(3);
+        if (event.ctrlKey) this.moveBeginIndex(this.drawCount);
+        else if (event.shiftKey) this.moveBeginIndex(1000);
+        else this.moveBeginIndex(3);
         event.initEvent();
       }
     });
@@ -238,8 +242,5 @@ export default {
   overflow-x: hidden !important;
   white-space: nowrap !important;
   max-width: 200px !important;
-}
-
-.tr {
 }
 </style>

@@ -3,18 +3,25 @@
     <v-form v-model="valid">
       <v-container>
         <v-row>
-          <v-col cols="12" md="4">
-            <v-text-field v-model="getRows" :counter="10" label="get rows" required></v-text-field>
+          <v-col cols="12" md="3">
+            <v-text-field
+              v-on:keyup.enter="getData"
+              v-model="getRows"
+              :counter="10"
+              label="조회 건수"
+              required
+            ></v-text-field>
           </v-col>
 
-          <v-col cols="12" md="4">
-            <div class="my-2" v-on:click="getData">
-              <v-btn small :loading="isLoading" color="primary">get data</v-btn>
+          <v-col cols="12" md="2">
+            <div class="my-2">
+              <v-btn v-on:click="getData" small :loading="isLoading" color="primary">조회</v-btn>
             </div>
           </v-col>
 
-          <v-col cols="12" md="4">query exec: {{execTime}} ms</v-col>
+          <v-col cols="12" md="3">Query execute : {{execTime}} ms</v-col>
         </v-row>
+        <v-row></v-row>
 
         <v-row>
           <v-col>
@@ -32,7 +39,6 @@
               </div>
             </div>
           </v-col>
-          <v-col></v-col>
         </v-row>
       </v-container>
     </v-form>
@@ -91,3 +97,4 @@ export default {
   },
 };
 </script>
+
