@@ -114,7 +114,7 @@ export default {
       vDatabase = database;
 
       this.execTime = data.execTime;
-      this.setBeginIndex();
+      this.initBeginIndex();
       this.setMaximumBeginIndex();
       this.refreshDrawData();
       this.isLoading = false;
@@ -132,7 +132,7 @@ export default {
       return headers;
     },
 
-    async setBeginIndex() {
+    async initBeginIndex() {
       this.beginIndex = 0;
     },
 
@@ -167,6 +167,7 @@ export default {
         )
       );
       this.drawCount = vDatabase.length;
+      this.initBeginIndex();
       this.setMaximumBeginIndex();
       this.refreshDrawData();
     },
