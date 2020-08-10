@@ -1,5 +1,5 @@
 <template>
-  <div class="custom-table">
+  <div class="custom-table" @mousewheel="tableWheelEvent">
     <table border="1px">
       <thead>
         <div>
@@ -13,16 +13,16 @@
         </div>
       </thead>
       <tr>
-        <div v-for="item in draw.drawItems" v-bind:key="item._rowid">
+        <div v-for="item in drawItems" v-bind:key="item.__rowid">
           <td
             class="custom-cell"
-            @mousedown="cellMouseDown(item._rowid, header._colid)"
-            @mouseover="cellIndexTracking(item._rowid, header._colid)"
-            @mouseup="cellMouseUp(item._rowid, header._colid)"
+            @mousedown="cellMouseDown(item.__rowid, header.__colid)"
+            @mouseover="cellIndexTracking(item.__rowid, header.__colid)"
+            @mouseup="cellMouseUp(item.__rowid, header.__colid)"
             v-for="header in headers"
-            v-bind:key="header._colid"
-            :class="item[header._colid].isSelected ? 'select' : 'non-select'"
-          >{{item[header._colid].value}}</td>
+            v-bind:key="header.__colid"
+            :class="!item[header.__colid].isSelected ? 'non-select' : item[header.__colid].isSelected > 1 ? 'edit': 'select'"
+          >{{item[header.__colid].value}}</td>
         </div>
       </tr>
     </table>
@@ -36,46 +36,47 @@ export default {
   data() {
     return {
       isTracking: false,
-      selectPoint: {
-        down: { rowid: "", colid: "" },
-        over: { rowid: "", colid: "" },
+      virtualItems: "",
+      drawItems: "",
+      beginIndex: 0,
+      maximumBeginIndex: 0,
+      drawSize: 15,
+      mousePoint: {
+        down: { rowid: 0, colid: 0 },
+        over: { rowid: 0, colid: 0 }
       },
-      draw: {
-        items: "",
-        drawItems: "",
-        beginIndex: 0,
-        maximumBeginIndex: 0,
-        drawCount: 15,
-      },
-      selectedCell: { rowid: "", colid: "" },
+      editCell: { rowid: 0, colid: 0 },
       selectedCells: [],
-      selectCells: [],
+      selectCells: []
     };
   },
 
   watch: {
-    headers: function (givenHeader) {
+    headers: function(givenHeader) {
       this.setHeaderOrdering(givenHeader);
     },
-    items: function (newItems) {
-      this.draw.items = newItems;
-      this.drawItems();
+    items: function(newItems) {
+      this.virtualItems = newItems;
+      this.initializeIndex();
+      this.createDrawItems();
     },
+    beginIndex: function() {
+      this.createDrawItems();
+    }
   },
 
   methods: {
     async cellIndexTracking(rowid, colid) {
       if (!this.isTracking) return;
-      this.selectPoint.over.rowid = rowid;
-      this.selectPoint.over.colid = colid;
+      this.mousePoint.over = { rowid, colid };
       this.AddToSelectVector();
     },
 
     async cellMouseDown(rowid, colid) {
       this.isTracking = true;
-      this.selectPoint.down.rowid = rowid;
-      this.selectPoint.down.colid = colid;
-      this.selectedCell = this.selectPoint.down;
+      this.mousePoint.down = { rowid, colid };
+      this.editCell = { rowid, colid };
+      // console.log(this.editCell);
       this.cellIndexTracking(rowid, colid);
     },
 
@@ -83,38 +84,99 @@ export default {
       this.isTracking = false;
     },
 
+    async cellArrowDown() {
+      this.editCell.rowid += 1;
+      this.mousePoint.down = this.editCell;
+      this.mousePoint.over = this.editCell;
+      await this.AddToSelectVector();
+    },
+
+    // index 제어
+    async initializeIndex() {
+      this.beginIndex = 0;
+      await this.setMaximumBeginIndex();
+    },
+
+    async setMaximumBeginIndex() {
+      this.maximumBeginIndex =
+        this.virtualItems.length - this.drawSize < 0
+          ? 0
+          : this.virtualItems.length - this.drawSize;
+    },
+
+    async moveToBeginIndex(delta) {
+      this.beginIndex += delta;
+      if (this.beginIndex < 0) this.beginIndex = 0;
+      else if (this.beginIndex > this.maximumBeginIndex)
+        this.beginIndex = this.maximumBeginIndex;
+    },
+
+    async createDrawItems() {
+      let drawableItems = this.virtualItems.slice(
+        this.beginIndex,
+        this.beginIndex + this.drawSize
+      );
+
+      let itemRows = new Array();
+      for (let ridx in drawableItems) {
+        let itemRow = new Object();
+        let rowId = parseInt(this.beginIndex) + parseInt(ridx);
+        itemRow.__rowid = rowId;
+        for (let cIdx in this.headers) {
+          let column = this.headers[cIdx];
+          let colId = column.__colid;
+          itemRow[colId] = new Object();
+          itemRow[colId].value = drawableItems[ridx][column.name];
+          itemRow[colId].isSelected = await this.isSelected(
+            itemRow.__rowid,
+            column.__colid
+          );
+        }
+        itemRows.push(itemRow);
+      }
+
+      // console.log(buffers);
+      this.drawItems = itemRows;
+    },
+
+    min(arg1, arg2) {
+      return arg1 < arg2 ? arg1 : arg2;
+    },
+
+    max(arg1, arg2) {
+      return arg1 < arg2 ? arg2 : arg1;
+    },
+
     async AddToSelectVector() {
       // console.time("Extract selected cells");
-      let beginRowid = 0;
-      let endRowId = 0;
-      let beginColId = 0;
-      let endColId = 0;
-      if (this.selectPoint.down.rowid < this.selectPoint.over.rowid) {
-        beginRowid = this.selectPoint.down.rowid;
-        endRowId = this.selectPoint.over.rowid;
-      } else {
-        beginRowid = this.selectPoint.over.rowid;
-        endRowId = this.selectPoint.down.rowid;
-      }
-
-      if (this.selectPoint.down.colid < this.selectPoint.over.colid) {
-        beginColId = this.selectPoint.down.colid;
-        endColId = this.selectPoint.over.colid;
-      } else {
-        beginColId = this.selectPoint.over.colid;
-        endColId = this.selectPoint.down.colid;
-      }
-
-      console.log(`beginRowid : ${beginRowid}, endRowId : ${endRowId}`);
-      console.log(`beginColId : ${beginColId}, endColId : ${endColId}`);
+      let beginRowid = this.min(
+        this.mousePoint.down.rowid,
+        this.mousePoint.over.rowid
+      );
+      let endRowId = this.max(
+        this.mousePoint.down.rowid,
+        this.mousePoint.over.rowid
+      );
+      let beginColId = this.min(
+        this.mousePoint.down.colid,
+        this.mousePoint.over.colid
+      );
+      let endColId = this.max(
+        this.mousePoint.down.colid,
+        this.mousePoint.over.colid
+      );
+      // console.log(`row id : ${beginRowid} - ${endRowId}`);
+      // console.log(`col id : ${beginColId} - ${endColId}`);
 
       this.selectCells = new Array();
       for (let rowid = beginRowid; rowid <= endRowId; rowid++) {
         for (let colid = beginColId; colid <= endColId; colid++) {
           this.selectCells.push({ rowid, colid });
-          this.draw.drawItems[rowid][colid].isSelected = true;
+          await this.setSelected(rowid, colid);
         }
       }
+
+      await this.setEdit(this.editCell.rowid, this.editCell.colid);
 
       for (let idx in this.selectedCells) {
         let isFound = false;
@@ -129,121 +191,121 @@ export default {
             break;
           }
         }
-        if (!isFound) {
-          this.draw.drawItems[this.selectedCells[idx].rowid][
+        if (!isFound)
+          await this.setUnSelected(
+            this.selectedCells[idx].rowid,
             this.selectedCells[idx].colid
-          ].isSelected = false;
-        }
+          );
       }
-      console.log("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-
-      // console.log("difference");
-      // console.log(difference);
 
       this.selectedCells = this.selectCells;
       // console.timeEnd("Extract selected cells");
     },
 
-    async drawItems(moveIdx = 0) {
-      console.log(`draw items : ${moveIdx}`);
-      this.draw.beginIndex += moveIdx;
-      if (moveIdx === 0 || this.draw.beginIndex < 0) this.draw.beginIndex = 0;
-      this.draw.maximumBeginIndex =
-        this.items.length - this.draw.drawCount < 0
-          ? 0
-          : this.items.length - this.draw.drawCount;
-      if (this.draw.beginIndex > this.draw.maximumBeginIndex)
-        this.draw.beginIndex = this.draw.maximumBeginIndex;
-
-      console.log(`this.draw.beginIndex : ${this.draw.beginIndex}`);
-      console.log(
-        `this.draw.maximumBeginIndex : ${this.draw.maximumBeginIndex}`
-      );
-
-      let itemChunk = this.draw.items.slice(
-        this.draw.beginIndex,
-        this.draw.beginIndex + this.draw.drawCount
-      );
-
-      let buffers = new Array();
-      for (let idx in itemChunk) {
-        let tmpRows = new Object();
-        tmpRows._rowid = parseInt(this.draw.beginIndex + idx);
-        for (let hidx in this.headers) {
-          tmpRows[this.headers[hidx]._colid] = new Object();
-          tmpRows[this.headers[hidx]._colid].value =
-            itemChunk[idx][this.headers[hidx].value];
-          tmpRows[this.headers[hidx]._colid].isSelected = await this.isSelected(
-            tmpRows._rowid,
-            this.headers[hidx]._colid
-          );
+    async setEdit(rowid, colid) {
+      for (let rIdx in this.drawItems) {
+        let row = this.drawItems[rIdx];
+        let __rowid = row.__rowid;
+        for (let cIdx in this.headers) {
+          let col = this.headers[cIdx];
+          let __colid = col.__colid;
+          if (
+            parseInt(__rowid) == parseInt(rowid) &&
+            parseInt(__colid) == parseInt(colid)
+          ) {
+            this.drawItems[rIdx][__colid].isSelected = 2;
+          }
         }
-        buffers.push(tmpRows);
       }
+    },
 
-      // console.log(buffers);
-      this.draw.drawItems = buffers;
+    async setSelected(rowid, colid) {
+      for (let rIdx in this.drawItems) {
+        let row = this.drawItems[rIdx];
+        let __rowid = row.__rowid;
+        for (let cIdx in this.headers) {
+          let col = this.headers[cIdx];
+          let __colid = col.__colid;
+          if (
+            parseInt(__rowid) == parseInt(rowid) &&
+            parseInt(__colid) == parseInt(colid)
+          ) {
+            if (this.drawItems[rIdx][__colid].isSelected !== 2)
+              this.drawItems[rIdx][__colid].isSelected = 1;
+          }
+        }
+      }
+    },
+
+    async setUnSelected(rowid, colid) {
+      for (let rIdx in this.drawItems) {
+        let row = this.drawItems[rIdx];
+        let __rowid = row.__rowid;
+        for (let cIdx in this.headers) {
+          let col = this.headers[cIdx];
+          let __colid = col.__colid;
+          if (
+            parseInt(__rowid) == parseInt(rowid) &&
+            parseInt(__colid) == parseInt(colid)
+          ) {
+            this.drawItems[rIdx][__colid].isSelected = false;
+            // console.log(`unselected ${rowid}, ${colid}`);
+          }
+        }
+      }
+    },
+
+    async tableWheelEvent(event) {
+      // console.log(`table wheel : ${event.deltaY}`);
+      event.preventDefault();
+      if (event.deltaY > 0) this.moveToBeginIndex(3);
+      else if (event.deltaY < 0) this.moveToBeginIndex(-3);
     },
 
     async isSelected(rowid, colid) {
-      // console.log(`isSelected`);
       let isSelectedCell = await this.selectedCells.includes({ rowid, colid });
       return isSelectedCell;
     },
 
-    getColumnName(colid) {
-      let columnName = "";
-      for (let idx in this.headers)
-        if (this.headers[idx]._colid === colid)
-          columnName = this.headers[idx].value;
-      return columnName;
-    },
-
     setHeaderOrdering(givenHeader) {
-      for (let idx in givenHeader) this.headers[idx]._colid = idx;
+      for (let idx in givenHeader) this.headers[idx].__colid = idx;
       // console.log(this.headers);
-    },
+    }
   },
 
   mounted() {
-    window.addEventListener("keydown", (event) => {
+    window.addEventListener("keydown", event => {
       // if (!this.isObject) return; // 객체 선택 상태가 아니라면 패스
 
       if (event.keyCode === 33) {
         // console.log("Page up");
-        event.preventDefault();
-        if (event.altKey) this.drawItems(-this.drawCount);
-        if (event.shiftKey) this.drawItems(-1000);
-        else this.drawItems(-16);
-        event.initEvent();
+        // event.preventDefault();
+        // if (event.altKey) this.drawItems(-this.drawCount);
+        // if (event.shiftKey) this.drawItems(-1000);
+        // else this.drawItems(-16);
+        // event.initEvent();
       }
       if (event.keyCode === 34) {
         // console.log("Page down");
-        event.preventDefault();
-        if (event.altKey) this.drawItems(this.drawCount);
-        else if (event.shiftKey) this.drawItems(1000);
-        else this.drawItems(16);
-
+        // event.preventDefault();
+        // if (event.altKey) this.drawItems(this.drawCount);
+        // else if (event.shiftKey) this.drawItems(1000);
+        // else this.drawItems(16);
         // event.initEvent();
       }
       if (event.keyCode === 38) {
         // console.log("Arrow up");
-        event.preventDefault();
-        if (event.ctrlKey) this.drawItems(-this.drawCount);
-        else if (event.shiftKey) this.drawItems(-1000);
-        else this.drawItems(-3);
-        // event.initEvent();
+        // event.preventDefault();
       }
       if (event.keyCode === 40) {
         // console.log("Arrow down");
         event.preventDefault();
-        if (event.ctrlKey) this.drawItems(this.drawCount);
-        else if (event.shiftKey) this.drawItems(1000);
-        else this.drawItems(3);
-        // event.initEvent();
+        this.cellArrowDown();
+        // if (event.ctrlKey) this.drawItems(this.drawCount);
+        // else if (event.shiftKey) this.drawItems(1000);
       }
     });
-  },
+  }
 };
 </script>
 
@@ -259,6 +321,10 @@ export default {
 
 .select {
   background-color: brown;
+}
+
+.edit {
+  background-color: orange;
 }
 </style>
 

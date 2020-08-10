@@ -65,7 +65,7 @@ export default {
       getRows: 500,
       items: "",
       drawRowSize: 15,
-      headers: "",
+      headers: ""
     };
   },
 
@@ -87,13 +87,13 @@ export default {
       for (let idx = 0; idx < fields.length; idx++) {
         headers[idx] = new Object();
         headers[idx].text = fields[idx];
-        headers[idx].value = fields[idx];
+        headers[idx].name = fields[idx];
         headers[idx].width = "50px";
         headers[idx].fixed = true;
       }
       return headers;
-    },
-  },
+    }
+  }
 };
 </script>
 
