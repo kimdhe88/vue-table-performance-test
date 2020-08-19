@@ -7,12 +7,7 @@
         <div>
           <tr>
             <th v-if="showRowid" class="custom-cell fixed-cell">{{ "rowid" }}</th>
-            <th
-              class="custom-cell fixed-cell"
-              v-for="header in headers"
-              v-bind:key="header._colidx"
-              @click="tableAlign(header.name)"
-            >{{ header.text }}</th>
+            <th class="custom-cell fixed-cell" v-for="header in headers" v-bind:key="header._colidx" @click="tableAlign(header.name)">{{ header.text }}</th>
           </tr>
         </div>
       </thead>
@@ -74,24 +69,24 @@ export default {
   },
 
   watch: {
-    headers: function (givenHeader) {
+    headers: function(givenHeader) {
       this.resetColumnIndex(givenHeader);
     },
-    items: function (newItems) {
+    items: function(newItems) {
       // console.log(`itemChange : ${newItems.length}`);
       this.itemInitialize(newItems);
       this.createDrawItems();
     },
-    "index.begin": function () {
+    "index.begin": function() {
       this.createDrawItems();
     },
-    selectAreaManager: function () {
+    selectAreaManager: function() {
       this.createDrawItems();
     },
-    showRowid: function (newVal) {
+    showRowid: function(newVal) {
       console.log(newVal);
     },
-    search: function (searchText) {
+    search: function(searchText) {
       this.searchText = searchText;
     },
   },
@@ -117,27 +112,16 @@ export default {
       // console.log(`call itemInitialize()`);
       await Object.assign(this.virtualItems, newItems);
       this.index.begin = 0;
-      this.index.last =
-        this.virtualItems.length - this.drawSize < 0
-          ? 0
-          : this.virtualItems.length - this.drawSize;
+      this.index.last = this.virtualItems.length - this.drawSize < 0 ? 0 : this.virtualItems.length - this.drawSize;
     },
 
     async moveToBeginIndex(delta) {
-      this.index.begin =
-        this.index.begin + delta < 0
-          ? 0
-          : this.index.begin + delta > this.index.last
-          ? this.index.last
-          : this.index.begin + delta;
+      this.index.begin = this.index.begin + delta < 0 ? 0 : this.index.begin + delta > this.index.last ? this.index.last : this.index.begin + delta;
     },
 
     async createDrawItems() {
       // console.log(`[cdi-before] begin index : ${this.index.begin}`);
-      let drawableItems = this.virtualItems.slice(
-        this.index.begin,
-        this.index.begin + this.drawSize
-      );
+      let drawableItems = this.virtualItems.slice(this.index.begin, this.index.begin + this.drawSize);
       // console.log(`[cdi-after] begin index : ${this.index.begin}`);
 
       let itemRows = new Array();
@@ -150,10 +134,8 @@ export default {
           let colidx = column._colidx;
           itemRow[colidx] = new Object();
           itemRow[colidx].value = drawableItems[ridx][column.name];
-          if (this.selectAreaManager.isEditCell(rowidx, colidx))
-            itemRow[colidx].cellType = 2;
-          else if (this.selectAreaManager.isSelected(rowidx, colidx))
-            itemRow[colidx].cellType = 1;
+          if (this.selectAreaManager.isEditCell(rowidx, colidx)) itemRow[colidx].cellType = 2;
+          else if (this.selectAreaManager.isSelected(rowidx, colidx)) itemRow[colidx].cellType = 1;
           else itemRow[colidx].cellType = 0;
           // console.log(itemRow[colidx].cellType);
         }
@@ -203,10 +185,7 @@ export default {
       console.log("sample-table");
       this.selectAreaManager.clear();
       this.selectAreaManager.start(0, 0);
-      this.selectAreaManager.tracking(
-        this.virtualItems.length - 1,
-        this.headers.length - 1
-      );
+      this.selectAreaManager.tracking(this.virtualItems.length - 1, this.headers.length - 1);
       this.selectAreaManager.end();
       this.createDrawItems();
     },
@@ -221,18 +200,9 @@ export default {
       let copyString = "";
       for (let idx = 0; idx < selectAreaList.length; idx++) {
         let point = selectAreaList[idx];
-        for (
-          let rowidx = point.begin.rowidx;
-          rowidx <= point.end.rowidx;
-          rowidx++
-        ) {
-          for (
-            let colidx = point.begin.colidx;
-            colidx <= point.end.colidx;
-            colidx++
-          ) {
-            if (colidx == point.end.colidx)
-              copyString += this.getCellData(rowidx, colidx) + "\n";
+        for (let rowidx = point.begin.rowidx; rowidx <= point.end.rowidx; rowidx++) {
+          for (let colidx = point.begin.colidx; colidx <= point.end.colidx; colidx++) {
+            if (colidx == point.end.colidx) copyString += this.getCellData(rowidx, colidx) + "\n";
             else copyString += this.getCellData(rowidx, colidx) + delemeter;
           }
         }
@@ -243,21 +213,12 @@ export default {
     async tableAlign(columnName) {
       console.log(`tableAlign : ${columnName}`);
       let headeridx;
-      for (let idx in this.headers)
-        if (this.headers[idx].name == columnName) headeridx = idx;
+      for (let idx in this.headers) if (this.headers[idx].name == columnName) headeridx = idx;
       if (this.headers[headeridx].alignType != 1) {
-        this.virtualItems = await ArrayUtil.sort(
-          this.virtualItems,
-          columnName,
-          true
-        );
+        this.virtualItems = await ArrayUtil.sort(this.virtualItems, columnName, true);
         this.headers[headeridx].alignType = 1;
       } else {
-        this.virtualItems = await ArrayUtil.sort(
-          this.virtualItems,
-          columnName,
-          false
-        );
+        this.virtualItems = await ArrayUtil.sort(this.virtualItems, columnName, false);
         this.headers[headeridx].alignType = 2;
       }
       this.createDrawItems();
@@ -272,9 +233,7 @@ export default {
 
     getCellData(rowidx, colidx) {
       let columnName = new String();
-      for (let idx in this.headers)
-        if (this.headers[idx]._colidx == colidx)
-          columnName = this.headers[idx].name;
+      for (let idx in this.headers) if (this.headers[idx]._colidx == colidx) columnName = this.headers[idx].name;
       let data = this.virtualItems[rowidx][columnName];
       return data;
     },

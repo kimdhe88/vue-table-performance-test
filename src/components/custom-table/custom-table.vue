@@ -16,15 +16,7 @@
         <div id="sample-table" v-for="item in drawItems" v-bind:key="item._rowidx">
           <tr>
             <td v-if="showRowid" class="custom-cell fixed-cell">{{ item._rowidx + 1 }}</td>
-            <td
-              class="custom-cell"
-              @mousedown="mouseClick(item._rowidx, header._colidx, $event)"
-              @mouseover="mouseMove(item._rowidx, header._colidx)"
-              @mouseup="mouseUp"
-              :class="item[header._colidx].cellType == 0 ? 'non-select' : item[header._colidx].cellType == 1 ? 'edit' : 'select'"
-              v-for="header in headers"
-              v-bind:key="header._colidx"
-            >
+            <td class="custom-cell" @mousedown="mouseClick(item._rowidx, header._colidx, $event)" @mouseover="mouseMove(item._rowidx, header._colidx)" @mouseup="mouseUp" :class="item[header._colidx].cellType == 0 ? 'non-select' : item[header._colidx].cellType == 1 ? 'edit' : 'select'" v-for="header in headers" v-bind:key="header._colidx">
               <input :id="`${item._rowidx}-${header._colidx}`" :readonly="!isEditMode" type="text" v-model="item[header._colidx].value" />
             </td>
           </tr>
@@ -128,6 +120,7 @@ export default {
 
         // Enter : 현재 셀 데이터 반영 후 아래라인으로
         if (!isShotcut && event.keyCode == 13) {
+          console.log("why no enter?");
           event.preventDefault();
           this.offEditMode(true);
           this.tm.arrowDown();
@@ -152,7 +145,17 @@ export default {
           // console.log("데이터 에디트 모드 종료");
         }
       } else {
-        event.preventDefault();
+        // Ctrl + v : 붙여넣기 이벤트라면 preventDefault()로 이벤트를 막지 않음.
+        if (!(event.ctrlKey && !event.shiftKey && !event.altKey && event.keyCode == 86)) event.preventDefault();
+        else return 0;
+
+        // Ctrl + c : 선택 된 셀 클립보드로 복사.
+        if (event.ctrlKey && !event.shiftKey && !event.altKey && event.keyCode == 67) {
+          console.log(`copy to clipboard`);
+          this.copyToClipboard();
+        }
+
+        // event.preventDefault();
         // console.log(`데이터 데이트 모드 아님, this.isEditMode : ${this.isEditMode}`);
         // tab : 오른쪽으로 이동
         if (!isShotcut && event.keyCode == 9) {
@@ -201,6 +204,7 @@ export default {
 
         // 일반 데이터 입력 범위, shift key는 눌렸거나 아니거나. 단, ctrl, alt 키는 누르지 않은 상태여야 함.
         if (!event.ctrlKey && !event.altKey && 48 <= event.keyCode && event.keyCode <= 90) {
+          console.log(event);
           this.onEditMode(event.key);
         }
         if (!event.ctrlKey && !event.altKey && 96 <= event.keyCode && event.keyCode <= 111) {
@@ -208,16 +212,6 @@ export default {
         }
         if (!event.ctrlKey && !event.altKey && 188 <= event.keyCode && event.keyCode <= 249) {
           this.onEditMode(event.key);
-        }
-
-        // Ctrl + c : 선택 된 셀 클립보드로 복사.
-        if (event.ctrlKey && !event.shiftKey && !event.altKey && event.keyCode == 67) {
-          // console.log(`copy to clipboard`);
-        }
-
-        // Ctrl + c : 선택 된 셀 클립보드로 복사.
-        if (event.ctrlKey && !event.shiftKey && !event.altKey && event.keyCode == 86) {
-          // console.log(`paste from clipboard`);
         }
 
         // Ctrl + a : 전체선택
@@ -254,8 +248,8 @@ export default {
       let editCell = this.tm.getEditCell();
       let editCellId = `${editCell.rowidx}-${editCell.colidx}`;
       document.getElementById(editCellId).focus();
-      // console.log(`this.drawItems[editCell.rowidx][editCell.colidx].value : ${this.drawItems[editCell.rowidx][editCell.colidx].value}`);
       if (newChar) this.drawItems[editCell.rowidx][editCell.colidx].value = newChar;
+      else document.getElementById(editCellId).select();
       this.isEditMode = true;
     },
 
@@ -263,6 +257,46 @@ export default {
       let editCell = this.tm.getEditCell();
       if (isUpdate) this.tm.update(editCell.rowidx, editCell.colidx, this.drawItems[editCell.rowidx][editCell.colidx].value);
       this.isEditMode = false;
+    },
+
+    copyToClipboard() {
+      let dummy = document.createElement("textarea");
+      document.body.appendChild(dummy);
+      dummy.value = this.tm.getSelectAreaDataToString();
+      dummy.select();
+      document.execCommand("copy");
+      // alert(`${data.length} rows copy success.`);
+      document.body.removeChild(dummy);
+    },
+
+    pasteFromClipboard(event) {
+      if (this.isEditMode) return 0;
+      let plainData = event.clipboardData.getData("text/plain");
+      let editCell = this.tm.getEditCell();
+      console.log(editCell);
+
+      let rows = plainData.toString().split("\n");
+      rows.pop(); // 클립보드 복사 후 맨 마지막 열의 개행문자(\n)로 인해 생기는 빈 열을 제거
+
+      let lastRowidx = 0;
+      let lastColidx = 0;
+      for (let ridx in rows) {
+        let row = rows[ridx].split("\t");
+        let rowidx = parseInt(editCell.rowidx) + parseInt(ridx);
+        if (rowidx >= this.tm.getView().length) break;
+        lastRowidx = lastRowidx < rowidx ? rowidx : lastRowidx;
+        for (let cidx in row) {
+          let data = row[cidx];
+          let colidx = parseInt(editCell.colidx) + parseInt(cidx);
+          // console.log(`this.tm.getHeaders().length : colidx , ${this.tm.getHeaders().length} : ${colidx}`);
+          if (colidx >= this.tm.getHeaders().length) break;
+          lastColidx = lastColidx < colidx ? colidx : lastColidx;
+          this.tm.update(rowidx, colidx, data);
+        }
+      }
+      this.tm.mouseClick(editCell.rowidx, editCell.colidx);
+      this.tm.moveCell(lastColidx - editCell.colidx, lastRowidx - editCell.rowidx, false, true);
+      this.drawItems = this.tm.refresh("pasteFromClipboard");
     },
 
     updated() {},
@@ -276,6 +310,11 @@ export default {
     console.log("mounted()");
     window.addEventListener("keydown", async (event) => {
       this.keyboardControlls(event);
+    });
+
+    window.addEventListener("paste", async (event) => {
+      // console.log("paste event ");
+      this.pasteFromClipboard(event);
     });
   },
 };

@@ -98,6 +98,11 @@ export default class TableController {
     return this.headers.filter((header) => header._colidx == colidx)[0].name;
   }
 
+  getDataByIndex(rowidx, colidx) {
+    let columnName = this.getColumnNameByIndex(colidx);
+    return this.view[rowidx][columnName];
+  }
+
   //test
   setViewData(rowidx, columnName, data) {
     this.view[rowidx][columnName] = data;

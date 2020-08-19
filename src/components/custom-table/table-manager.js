@@ -105,6 +105,13 @@ export default class TableManager {
     this.moveItemsByDeltaY(this.delta.mousewheel);
   }
 
+  selectAllRows() {
+    this.sac.clear();
+    this.sac.start(0, 0);
+    this.sac.tracking(this.tc.getView().length - 1, this.tc.getHeaders().length - 1);
+    this.sac.end();
+  }
+
   mouseClick(rowidx, colidx, isShift, isCtrl) {
     if (!isShift && !isCtrl) this.sac.clear();
     if (isCtrl) this.sac.store();
@@ -122,17 +129,6 @@ export default class TableManager {
 
   mouseUp() {
     this.sac.end();
-  }
-
-  selectAllRows() {
-    this.sac.clear();
-    this.sac.start(0, 0);
-    this.sac.tracking(this.tc.getView().length - 1, this.tc.getHeaders().length - 1);
-    this.sac.end();
-  }
-
-  getEditCell() {
-    return this.sac.getEditCell();
   }
 
   moveCell(deltaX, deltaY, ctrlKey = false, shiftKey = false) {
@@ -203,11 +199,40 @@ export default class TableManager {
   }
 
   getCellDataByIndex(rowidx, colidx) {
-    return this.displayItems[rowidx][colidx];
+    let columnName = this.tc.getColumnNameByIndex(colidx);
+    return this.tc.getView()[rowidx][columnName];
+  }
+
+  getEditCell() {
+    return this.sac.getEditCell();
+  }
+
+  getHeaders() {
+    return this.tc.getHeaders();
+  }
+
+  getView() {
+    return this.tc.getView();
+  }
+
+  /* clipboard copy & paste */
+  getSelectAreaDataToString(delimiters = "\t") {
+    let selectAreaList = this.sac.getSelectArea();
+    let copyString = "";
+    for (let idx = 0; idx < selectAreaList.length; idx++) {
+      let point = selectAreaList[idx];
+      for (let rowidx = point.begin.rowidx; rowidx <= point.end.rowidx; rowidx++) {
+        for (let colidx = point.begin.colidx; colidx <= point.end.colidx; colidx++) {
+          if (colidx == point.end.colidx) copyString += this.getCellDataByIndex(rowidx, colidx) + "\n";
+          //row의 마지막일 때 개행
+          else copyString += this.getCellDataByIndex(rowidx, colidx) + delimiters; // 데이터 + 딜리미터
+        }
+      }
+    }
+    return copyString;
   }
 
   // history and undo, redo
-
   update(rowidx, colidx, data) {
     let columnName = this.tc.getColumnNameByIndex(colidx);
     this.tc.setViewData(rowidx, columnName, data);
