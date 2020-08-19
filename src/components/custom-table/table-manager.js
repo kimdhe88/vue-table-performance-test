@@ -15,6 +15,7 @@ export default class TableManager {
       arrow: 1,
       page: 10,
     };
+    this.displayItems = new Array();
   }
 
   initializeTable(items) {
@@ -26,7 +27,7 @@ export default class TableManager {
   }
 
   refresh(type) {
-    // console.log(`refresh : ${type}`);
+    console.log(`refresh : ${type}`);
     let targetItems = this.tc.getView().slice(this.display.start, this.display.start + this.display.size);
     let rows = new Array();
 
@@ -46,31 +47,8 @@ export default class TableManager {
       row._rowidx = rowidx;
       rows.push(row);
     }
-    return rows;
-  }
-
-  moveItemsByDeltaY(deltaY) {
-    let limit = this.tc.getView().length - this.display.size;
-    if (limit < 0) limit = 0;
-    this.display.start += deltaY;
-    if (this.display.start < 0) this.display.start = 0;
-    else if (this.display.start > limit) this.display.start = limit;
-  }
-
-  moveBeginRow() {
-    this.moveCell(0, -this.tc.getView().length);
-  }
-
-  moveEndRow() {
-    this.moveCell(0, this.tc.getView().length);
-  }
-
-  moveBeginColumn() {
-    this.moveCell(-this.tc.getHeaders().length, 0);
-  }
-
-  moveEndColumn() {
-    this.moveCell(this.tc.getHeaders().length, 0);
+    this.displayItems = rows;
+    return this.displayItems;
   }
 
   async order(columnName) {
@@ -86,52 +64,45 @@ export default class TableManager {
     // return this.refresh();
   }
 
-  moveCellUp() {
-    this.moveCell(0, -this.delta.arrow);
+  // 셀 이동 관련 함수들
+  moveItemsByDeltaY(deltaY) {
+    let limit = this.tc.getView().length - this.display.size;
+    if (limit < 0) limit = 0;
+    this.display.start += deltaY;
+    if (this.display.start < 0) this.display.start = 0;
+    else if (this.display.start > limit) this.display.start = limit;
   }
 
-  moveCellDown() {
-    this.moveCell(0, this.delta.arrow);
+  arrowUp(ctrlKey, shiftKey) {
+    this.moveCell(0, -this.delta.arrow, ctrlKey, shiftKey);
   }
 
-  moveCellLeft() {
-    this.moveCell(-this.delta.arrow, 0);
+  arrowDown(ctrlKey, shiftKey) {
+    this.moveCell(0, this.delta.arrow, ctrlKey, shiftKey);
   }
 
-  moveCellRight() {
-    this.moveCell(this.delta.arrow, 0);
+  arrowLeft(ctrlKey, shiftKey) {
+    this.moveCell(-this.delta.arrow, 0, ctrlKey, shiftKey);
   }
 
-  moveCellAreaUp() {
-    this.shiftMoveCell(0, -this.delta.arrow);
+  arrowRight(ctrlKey, shiftKey) {
+    this.moveCell(this.delta.arrow, 0, ctrlKey, shiftKey);
   }
 
-  moveCellAreaDown() {
-    this.shiftMoveCell(0, this.delta.arrow);
+  pageUp(shiftKey) {
+    this.moveCell(0, -this.delta.page, false, shiftKey);
   }
 
-  moveCellAreaLeft() {
-    this.shiftMoveCell(-this.delta.arrow, 0);
-  }
-
-  moveCellAreaRight() {
-    this.shiftMoveCell(this.delta.arrow, 0);
-  }
-
-  mousewheelDown() {
-    this.moveItemsByDeltaY(this.delta.mousewheel);
-  }
-
-  pageUp() {
-    this.moveCell(0, -this.delta.page);
-  }
-
-  pageDown() {
-    this.moveCell(0, this.delta.page);
+  pageDown(shiftKey) {
+    this.moveCell(0, this.delta.page, false, shiftKey);
   }
 
   mousewheelUp() {
     this.moveItemsByDeltaY(-this.delta.mousewheel);
+  }
+
+  mousewheelDown() {
+    this.moveItemsByDeltaY(this.delta.mousewheel);
   }
 
   mouseClick(rowidx, colidx, isShift, isCtrl) {
@@ -160,7 +131,21 @@ export default class TableManager {
     this.sac.end();
   }
 
-  moveCell(deltaX, deltaY) {
+  getEditCell() {
+    return this.sac.getEditCell();
+  }
+
+  moveCell(deltaX, deltaY, ctrlKey = false, shiftKey = false) {
+    if (ctrlKey) {
+      deltaX = deltaX * this.tc.getHeaders().length;
+      deltaY = deltaY * this.tc.getItems().length;
+    }
+
+    if (shiftKey) this.moveNowCell(deltaX, deltaY);
+    else this.moveEditCell(deltaX, deltaY);
+  }
+
+  moveEditCell(deltaX, deltaY) {
     let limitX = this.tc.getHeaders().length - 1;
     let limitY = this.tc.getView().length - 1;
     let editCell = this.sac.getEditCell();
@@ -170,15 +155,15 @@ export default class TableManager {
     if (editCell.rowidx > limitY) editCell.rowidx = limitY;
     if (editCell.colidx < 0) editCell.colidx = 0;
     if (editCell.colidx > limitX) editCell.colidx = limitX;
+
     this.sac.clear();
     this.sac.start(editCell.rowidx, editCell.colidx);
     this.sac.tracking(editCell.rowidx, editCell.colidx);
     this.sac.end();
-    // this.moveItemsByDeltaY(deltaY);
+
     let rowlimit = parseInt(this.display.start) + parseInt(this.display.size) - 1;
     if (editCell.rowidx > rowlimit) {
       let delta = parseInt(editCell.rowidx) - rowlimit;
-      // console.log(`editCell.rowidx : ${editCell.rowidx}, delta : ${delta}`);
       this.moveItemsByDeltaY(delta);
     }
     if (editCell.rowidx < this.display.start) {
@@ -187,7 +172,7 @@ export default class TableManager {
     }
   }
 
-  shiftMoveCell(deltaX, deltaY) {
+  moveNowCell(deltaX, deltaY) {
     let limitX = this.tc.getHeaders().length - 1;
     let limitY = this.tc.getView().length - 1;
     let nowCell = this.sac.getNowCell();
@@ -197,20 +182,34 @@ export default class TableManager {
     if (nowCell.rowidx > limitY) nowCell.rowidx = limitY;
     if (nowCell.colidx < 0) nowCell.colidx = 0;
     if (nowCell.colidx > limitX) nowCell.colidx = limitX;
-    // this.sac.clear();
-    // this.sac.start(editCell.rowidx, editCell.colidx);
+
     this.sac.restart();
     this.sac.tracking(nowCell.rowidx, nowCell.colidx);
     this.sac.end();
 
     if (nowCell.rowidx > this.display.start + this.display.size - 1) {
       let delta = parseInt(nowCell.rowidx) - (parseInt(this.display.start) + parseInt(this.display.size) - 1);
-      console.log(`nowCell.rowidx : ${nowCell.rowidx}, delta : ${delta}`);
       this.moveItemsByDeltaY(deltaY);
     }
     if (nowCell.rowidx < this.display.start) {
       let delta = parseInt(this.display.start) - parseInt(nowCell.rowidx);
       this.moveItemsByDeltaY(-delta);
     }
+  }
+
+  // cell data 확인
+  isEditCell(rowidx, colidx) {
+    return this.sac.isEditCell(rowidx, colidx);
+  }
+
+  getCellDataByIndex(rowidx, colidx) {
+    return this.displayItems[rowidx][colidx];
+  }
+
+  // history and undo, redo
+
+  update(rowidx, colidx, data) {
+    let columnName = this.tc.getColumnNameByIndex(colidx);
+    this.tc.setViewData(rowidx, columnName, data);
   }
 }

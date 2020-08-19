@@ -93,4 +93,13 @@ export default class TableController {
   getHeaders() {
     return this.headers;
   }
+
+  getColumnNameByIndex(colidx) {
+    return this.headers.filter((header) => header._colidx == colidx)[0].name;
+  }
+
+  //test
+  setViewData(rowidx, columnName, data) {
+    this.view[rowidx][columnName] = data;
+  }
 }
