@@ -48,7 +48,6 @@ export default class TableController {
   initializeTable(items) {
     this.items = items;
     Object.assign(this.view, this.items);
-    // this.headers = this.refactoringHeaders(headers);
   }
 
   refactoringHeaders(givenHeader) {
@@ -62,26 +61,28 @@ export default class TableController {
 
   getAlginTypeByColumnName(columnName) {
     let alginType;
-    for (let idx in this.headers) if (this.headers[idx].name == columnName) header = headers[idx].alginType;
+    for (let idx in this.headers) if (this.headers[idx].name == columnName) alginType = this.headers[idx].alginType;
     return alginType;
+  }
+
+  setAlginTypeByColumnName(columnName, alginType) {
+    for (let idx in this.headers) if (this.headers[idx].name == columnName) this.headers[idx].alginType = alginType;
   }
 
   /* table controll area */
   async ascendingOrder(columnName) {
-    Object.assign(this.view, await sort(this.items, columnName, true));
-    // return this.view;
+    this.view = await sort(this.view, columnName, true);
   }
 
   async descendingOrder(columnName) {
-    Object.assign(this.view, await sort(this.items, columnName, false));
-    // return this.view;
+    this.view = await sort(this.view, columnName, false);
   }
 
   async tableSearch(searchText, option = { isCaseSensitive: false, property: null }) {
-    Object.assign(this.view, await search(this.items, searchText, option));
-    // return this.view;
+    this.view = await search(this.items, searchText, option);
   }
 
+  // 정보들 반환 getters
   getItems() {
     return this.items;
   }
@@ -105,6 +106,15 @@ export default class TableController {
 
   //test
   setViewData(rowidx, columnName, data) {
+    let orgData = this.view[rowidx][columnName];
+    let newData = data;
+    if (this.view[rowidx][columnName] === data) console.log(`${this.view[rowidx][columnName]} === ${data} ? true`);
+    else console.log(`${this.view[rowidx][columnName]} === ${data} ? false`);
+
+    console.log(`orgData.length : ${orgData.length}, newData.length : ${newData.length}`);
+    for (let i = 0; i < newData.length; i++) console.log(newData.charCodeAt(i));
+    console.log(`/n is ${"\n".charCodeAt(0)}`);
+
     this.view[rowidx][columnName] = data;
   }
 }

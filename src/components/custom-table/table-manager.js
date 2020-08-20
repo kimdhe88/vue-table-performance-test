@@ -1,5 +1,6 @@
 import TableController from "./table-controller";
 import SelectionAreaController from "./selection-area-manager";
+import { ssrCompile } from "vue-template-compiler";
 
 export default class TableManager {
   constructor() {
@@ -27,7 +28,7 @@ export default class TableManager {
   }
 
   refresh(type) {
-    console.log(`refresh : ${type}`);
+    // console.log(`refresh : ${type}`);
     let targetItems = this.tc.getView().slice(this.display.start, this.display.start + this.display.size);
     let rows = new Array();
 
@@ -53,8 +54,14 @@ export default class TableManager {
 
   async order(columnName) {
     let alginType = this.tc.getAlginTypeByColumnName(columnName);
-    if (alginType == 0 || alginType == 2) await this.tc.ascendingOrder(columnName);
-    else await this.tc.descendingOrder(columnName);
+    // console.log(alginType);
+    if (alginType == 0 || alginType == 2) {
+      await this.tc.ascendingOrder(columnName);
+      this.tc.setAlginTypeByColumnName(columnName, 1);
+    } else {
+      await this.tc.descendingOrder(columnName);
+      this.tc.setAlginTypeByColumnName(columnName, 2);
+    }
     // return this.refresh();
   }
 
@@ -215,7 +222,12 @@ export default class TableManager {
     return this.tc.getView();
   }
 
-  /* clipboard copy & paste */
+  /* clipboard copy & paste
+   * 선택 영역으로 부터 원본 데이터를 가져온다.
+   * 만약 데이터 내에 개행이 존재하는 다중라인 텍스트라면 데이터 전체를 더블쿼터(")로 감싼다.
+   * 만약 다중라인 택스트 내에 더블쿼터가 존재한다면 더블쿼터를 하나 더 붙여준다.
+   * 붙여넣기 시 다중라인 텍스트를 감싸는 더블쿼터 제거 후 내부에 존재하는 더블 쿼터는 싱글 쿼터로 바꿔준다.
+   */
   getSelectAreaDataToString(delimiters = "\t") {
     let selectAreaList = this.sac.getSelectArea();
     let copyString = "";
@@ -223,13 +235,61 @@ export default class TableManager {
       let point = selectAreaList[idx];
       for (let rowidx = point.begin.rowidx; rowidx <= point.end.rowidx; rowidx++) {
         for (let colidx = point.begin.colidx; colidx <= point.end.colidx; colidx++) {
-          if (colidx == point.end.colidx) copyString += this.getCellDataByIndex(rowidx, colidx) + "\n";
-          //row의 마지막일 때 개행
-          else copyString += this.getCellDataByIndex(rowidx, colidx) + delimiters; // 데이터 + 딜리미터
+          let cellData = this.getCellDataByIndex(rowidx, colidx);
+          cellData = this.multiLineProcessingForCopy(cellData);
+          if (colidx == point.end.colidx) copyString += cellData + "\n";
+          else copyString += cellData + delimiters; // 데이터 + 딜리미터
         }
       }
     }
+    // console.log("copy Strg");
+    // console.log(copyString);
     return copyString;
+  }
+
+  multiLineProcessingForCopy(data) {
+    // console.log(`data : ${data}`);
+    if (data.toString().match(/\r\n|\r|\n/g)) {
+      // 멀티라인일 때 진입
+      data = data.replace(/\"/g, '""'); // 멀티라인 내 더블쿼터"가 있으면 이스케이프를 위해 연결 된 더블쿼터("")로 변경, excel type
+      data = `"${data}"`; // 멀티라인을 더블쿼터로 감싸주기
+    }
+    return data;
+  }
+
+  clipboardDataToUpdate(plainText, delimiters = "\t") {
+    let rows = plainText.split("\r\n");
+    rows.pop(); // 클립보드에서 가져올 때 맨 마지막 줄에서 빈 줄이 하나 추가됨. 해당 라인 제거
+
+    for (let ridx in rows) {
+      let row = rows[ridx];
+      let cellDataList = row.split(delimiters);
+      for (let cidx in cellDataList) {
+        let cellData = cellDataList[cidx];
+        cellData = this.multiLineProcessingForPaste(cellData);
+        // console.log(cellData);
+        // this.printAsciiCodes(cellData);
+        // console.log(`cellData : ${cellData}, ascii : ${this.ascii(cellData)}`);
+      }
+      // console.log("next line ] @@@");
+    }
+  }
+
+  multiLineProcessingForPaste(data) {
+    if (data.match(/^"/g) && data.match(/"$/g)) {
+      data = data.replace(/^"/, ""); // 처음과 끝 " 제거
+      data = data.replace(/"$/, ""); // 처음과 끝 " 제거
+      data = data.replace(/\"\"/g, '"'); // 데이터 내 "" 를 "로 변경
+    }
+    return data;
+  }
+
+  printAsciiCodes(data) {
+    for (let idx in data) console.log(`data : ${data[idx]}, ascii, ${data[idx].charCodeAt(0)}`);
+  }
+
+  ascii(data) {
+    return data.charCodeAt(0);
   }
 
   // history and undo, redo
