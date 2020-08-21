@@ -19,13 +19,24 @@
           </div>
         </v-col>
 
-        <v-col cols="12" md="3">Query execute : ms</v-col>
+        <v-col cols="12" md="3">Query execute : {{execTime}} ms</v-col>
       </v-row>
-
+      <v-row>
+        <v-col cols="12" md="6"></v-col>
+        <v-col cols="12" md="2">
+          <v-chip outlined color="info">{{drawCount}} / {{fetchCount}} rows</v-chip>
+        </v-col>
+        <v-col cols="12" md="3">
+          <v-text-field v-model="search" v-on:keyup.enter="tableSearch(search)" label="Search"></v-text-field>
+        </v-col>
+        <v-col cols="12" md="1">
+          <v-btn v-on:click="tableSearch(search)" color="secondary">검색</v-btn>
+        </v-col>
+      </v-row>
       <v-row>
         <v-col cols="12" md="12">
           <div>
-            <CustomTable :headers="headers" :items="items" :show-rowid="true"></CustomTable>
+            <CustomTable :headers="headers" :items="items"></CustomTable>
           </div>
         </v-col>
       </v-row>
@@ -41,7 +52,7 @@
 <script>
 import axios from "axios";
 import db from "../modules/database";
-import CustomTable from "@/components/custom-table/custom-table";
+import CustomTable from "@/components/custom-table";
 
 export default {
   name: "App",
@@ -60,11 +71,12 @@ export default {
 
   methods: {
     async getData() {
-      // console.log("testset");
       if (this.isLoading) return;
+      console.log(`get data start!!`);
       this.isLoading = true;
       let data = await db.getTableByReturnType("object", this.getRows);
       this.headers = await this.getHeaders(data.fields);
+      // console.log(this.headers);
       this.items = data.rows;
 
       this.isLoading = false;
@@ -84,6 +96,7 @@ export default {
   },
 };
 </script>
+
 
 <style>
 .text-start {
