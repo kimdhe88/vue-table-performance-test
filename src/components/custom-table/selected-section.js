@@ -101,12 +101,15 @@ export default class SelectedSection {
   isDatumPoint(rowidx, colidx) {
     return this.area.isDatumPoint(rowidx, colidx);
   }
+
   isSelectedPoint(rowidx, colidx) {
     return this.area.isSelectedPoint(rowidx, colidx);
   }
+
   isMousePoint(rowidx, colidx) {
     return this.area.isMousePoint(rowidx, colidx);
   }
+
   isSelectedSection(rowidx, colidx) {
     let isSelectionPoint = false;
     if (this.area.isSelectedSection(rowidx, colidx)) isSelectionPoint = true;
@@ -117,17 +120,32 @@ export default class SelectedSection {
   getDatumPoint() {
     return this.area.getDatumPoint();
   }
+
   getSelectedPoint() {
     return this.area.getSelectedPoint();
   }
+
   getMousePoint() {
     return this.area.getMousePoint();
   }
+
   getSelectedSection() {
     let areaList = new Array();
     areaList.push(this.area.getSelectedSection());
     for (let idx in this.areaList) areaList.push(this.areaList[idx].getSelectedSection());
     return areaList;
+  }
+
+  getSelectedSectionRowidxList() {
+    let rowidxList = new Array();
+    let selectedSection = this.area.getSelectedSection();
+    for (let i = selectedSection.initial.rowidx; i <= selectedSection.terminal.rowidx; i++) if (!rowidxList.includes(i)) rowidxList.push(i);
+    for (let idx in this.areaList) {
+      selectedSection = this.areaList[idx].getSelectedSection();
+      for (let i = selectedSection.initial.rowidx; i <= selectedSection.terminal.rowidx; i++) if (!rowidxList.includes(i)) rowidxList.push(i);
+    }
+    // console.log(rowidxList.sort((a, b) => a - b));
+    return rowidxList.sort((a, b) => a - b);
   }
 
   /* management functions */
@@ -152,7 +170,7 @@ export default class SelectedSection {
   }
 
   tracking(rowidx, colidx, justKeyboard = false) {
-    if (!justKeyboard) console.log("마우스 입력이 개입됨. ");
+    // if (!justKeyboard) console.log("마우스 입력이 개입됨. ");
     if (this.mode == DRAGGING) {
       this.area.setSelectedPoint(rowidx, colidx);
       // console.log(rowidx, colidx);

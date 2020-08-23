@@ -47,6 +47,10 @@ export default class PetraTable {
     return this.pto.getHeaders();
   }
 
+  getView() {
+    return this.pto.getView();
+  }
+
   getDatumPoint() {
     return this.ss.getDatumPoint();
   }
@@ -55,12 +59,20 @@ export default class PetraTable {
     return this.pto.getViewData(rowdix, colidx);
   }
 
+  getLastestVersionData(rowidx, colidx) {
+    return this.pto.getLastestVersionData(rowidx, colidx);
+  }
+
   isEditMode() {
     return this.mode == MODE.EDITTING;
   }
 
   isDatumPoint(rowidx, colidx) {
     return this.ss.isDatumPoint(rowidx, colidx);
+  }
+
+  isInsert(rowidx) {
+    return this.pto.isInsert(rowidx);
   }
 
   refresh(type) {
@@ -77,7 +89,7 @@ export default class PetraTable {
         let colidx = hidx;
         rows[rowidx][colidx] = new Object();
         rows[rowidx][colidx].name = header.name;
-        rows[rowidx][colidx].value = targetItem[header.name];
+        rows[rowidx][colidx].value = this.pto.getLastestVersionData(rowidx, colidx);
         rows[rowidx][colidx].cellType = this.getCellType(rowidx, colidx);
         // console.log(rows[rowidx][colidx].cellType);
       }
@@ -91,6 +103,9 @@ export default class PetraTable {
       else return CELLTYPE.EDITABLE;
     }
     if (this.ss.isSelectedSection(rowidx, colidx)) return CELLTYPE.SELECTED;
+    if (this.pto.isDelete(rowidx, colidx)) return CELLTYPE.DELETE;
+    if (this.pto.isInsert(rowidx, colidx)) return CELLTYPE.INSERT;
+    if (this.pto.isUpdate(rowidx, colidx)) return CELLTYPE.UPDATE;
     if (this.ss.isMousePoint(rowidx, colidx)) return CELLTYPE.MOUSEOVER;
 
     return CELLTYPE.NONE;
@@ -234,8 +249,9 @@ export default class PetraTable {
       let point = selectedSection[idx];
       for (let rowidx = point.initial.rowidx; rowidx <= point.terminal.rowidx; rowidx++) {
         for (let colidx = point.initial.colidx; colidx <= point.terminal.colidx; colidx++) {
-          let cellData = this.pto.getViewData(rowidx, colidx);
+          let cellData = this.pto.getLastestVersionData(rowidx, colidx);
           cellData = this.multiLineProcessingForCopy(cellData);
+          // this.printAsciiCodes(cellData);
           if (colidx == point.terminal.colidx) copyString += cellData + "\n";
           else copyString += cellData + delimiters; // 데이터 + 딜리미터
         }
@@ -256,32 +272,110 @@ export default class PetraTable {
     return data;
   }
 
-  clipboardDataToUpdate(plainText, delimiters = "\t") {
-    let rows = plainText.split("\r\n");
-    rows.pop(); // 클립보드에서 가져올 때 맨 마지막 줄에서 빈 줄이 하나 추가됨. 해당 라인 제거
+  clipboardDataIntoArray(plainText, delimiters = "\t") {
+    // this.printAsciiCodes(plainText);
+    // this.splitPlainText(plainText);
+    let clipboardRows = plainText.split("\r\n");
+    clipboardRows.pop(); // 클립보드에서 가져올 때 맨 마지막 줄에서 빈 줄이 하나 추가됨. 해당 라인 제거
+    let rows = new Array();
 
-    for (let ridx in rows) {
-      let row = rows[ridx];
-      let cellDataList = row.split(delimiters);
-      for (let cidx in cellDataList) {
-        let cellData = cellDataList[cidx];
-        cellData = this.multiLineProcessingForPaste(cellData);
-        console.log(cellData);
-        // this.printAsciiCodes(cellData);
-        // console.log(`cellData : ${cellData}, ascii : ${this.ascii(cellData)}`);
+    for (let ridx in clipboardRows) {
+      let clipboardRow = clipboardRows[ridx];
+      let clipboardColumns = clipboardRow.split(delimiters);
+      let row = new Object();
+      for (let cidx in clipboardColumns) {
+        let data = clipboardColumns[cidx];
+        data = this.multiLineProcessingForPaste(data);
+        // testline
+        // this.printAsciiCodes(data);
+        row[cidx] = data;
       }
-      // console.log("next line ] @@@");
+      rows.push(row);
+    }
+    console.log(rows);
+    return rows;
+  }
+
+  splitPlainText(plainText) {
+    let prevWord = "";
+    let word = "";
+    let rows = new Array();
+    let inWord = true;
+    for (let idx in plainText) {
+      // if (prevWord.charCodeAt(0) == 34)
+      if (plainText[idx].charCodeAt(0) == 9) {
+        rows.push(word);
+        word = "";
+        continue;
+      }
+
+      if (inWord) word += plainText[idx];
+      if (word.charCodeAt(0) == 34) {
+        inWord = !inWord;
+        if (prevWord.charCodeAt(0) == 34) inWord = !inWord;
+      }
+
+      console.log(plainText[idx].charCodeAt(0));
+      prevWord = word;
     }
   }
 
+  printAsciiCodes(data) {
+    console.log("[Start] print ascii codes!!!!");
+    for (let idx in data) console.log(`data : ${data[idx]}, ascii, ${data[idx].charCodeAt(0)}`);
+    console.log("[stop] print ascii codes!!!!");
+  }
+
   multiLineProcessingForPaste(data) {
+    // console.log("[start] multiLineProcessingForPaste");
+    // console.log(data);
     if (data.match(/^"/g) && data.match(/"$/g)) {
+      // console.log("in data @@@@");
       data = data.replace(/^"/, ""); // 처음과 끝 " 제거
       data = data.replace(/"$/, ""); // 처음과 끝 " 제거
       data = data.replace(/\"\"/g, '"'); // 데이터 내 "" 를 "로 변경
     }
+    // console.log("[end] multiLineProcessingForPaste");
     return data;
   }
 
-  update() {}
+  beginTransaction() {
+    this.pto.beginTransaction();
+  }
+
+  endTransaction() {
+    this.pto.endTransaction();
+  }
+
+  insert(rowidx) {
+    this.pto.insert(rowidx);
+  }
+
+  delete(rowidx) {
+    this.pto.delete(rowidx);
+  }
+
+  update(rowidx, colidx, before, after) {
+    this.pto.update(rowidx, colidx, before, after);
+  }
+
+  undo() {
+    this.pto.undo();
+  }
+
+  redo() {
+    this.pto.redo();
+  }
+
+  commit() {
+    return this.pto.commit();
+  }
+
+  cancle() {
+    this.pto.cancle();
+  }
+
+  getSelectedSectionRowidxList() {
+    return this.ss.getSelectedSectionRowidxList();
+  }
 }

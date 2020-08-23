@@ -8,7 +8,7 @@
       @click="focusOut()"
       label="검색"
     ></v-text-field>
-    <table border="1px" v-show="drawHeaders.length > 0">
+    <table border="1px" v-show="drawHeaders.length > 0" :draggable="false">
       <thead>
         <div>
           <tr class="non-data">
@@ -140,24 +140,71 @@ export default {
       // else console.log(event.keyCode);
 
       if (this.ptm.isEditMode()) {
-        //is edit
-        // console.log(`지금은 에디팅 중 : ${this.ptm.isEditMode()}`);
-        // console.log(`데이터 데이트 모드, this.isEditMode : ${this.isEditMode}`);
-
         // Enter : 현재 셀 데이터 반영 후 아래라인으로
         if (!isShotcut && event.keyCode == 13) {
           event.preventDefault();
+          let editPoint = this.ptm.getDatumPoint();
+          this.ptm.update(
+            editPoint.rowidx,
+            editPoint.colidx,
+            this.ptm.getLastestVersionData(editPoint.rowidx, editPoint.colidx),
+            this.editText
+          );
           this.ptm.editOff();
           this.ptm.arrowDown();
-          // console.log("데이터 에디트 모드 종료 후 아래로 이동");
+        }
+
+        // Shift + Enter : 현재 셀 데이터 반영 후 위 라인으로
+        if (
+          !event.ctrlKey &&
+          event.shiftKey &&
+          !event.altKey &&
+          event.keyCode == 13
+        ) {
+          event.preventDefault();
+          let editPoint = this.ptm.getDatumPoint();
+          this.ptm.update(
+            editPoint.rowidx,
+            editPoint.colidx,
+            this.ptm.getLastestVersionData(editPoint.rowidx, editPoint.colidx),
+            this.editText
+          );
+          this.ptm.editOff();
+          this.ptm.arrowUp();
         }
 
         // Tab : 현재 셀 데이터 반영 후 오른쪽 셀로 이동
         if (!isShotcut && event.keyCode == 9) {
           event.preventDefault();
+          let editPoint = this.ptm.getDatumPoint();
+          this.ptm.update(
+            editPoint.rowidx,
+            editPoint.colidx,
+            this.ptm.getLastestVersionData(editPoint.rowidx, editPoint.colidx),
+            this.editText
+          );
           this.ptm.editOff();
           this.ptm.arrowRight();
-          //update()
+          // console.log("데이터 에디트 모드 종료 후 오른쪽 이동");
+        }
+
+        // Tab : 현재 셀 데이터 반영 후 오른쪽 셀로 이동
+        if (
+          !event.ctrlKey &&
+          event.shiftKey &&
+          !event.altKey &&
+          event.keyCode == 9
+        ) {
+          event.preventDefault();
+          let editPoint = this.ptm.getDatumPoint();
+          this.ptm.update(
+            editPoint.rowidx,
+            editPoint.colidx,
+            this.ptm.getLastestVersionData(editPoint.rowidx, editPoint.colidx),
+            this.editText
+          );
+          this.ptm.editOff();
+          this.ptm.arrowLeft();
           // console.log("데이터 에디트 모드 종료 후 오른쪽 이동");
         }
 
@@ -165,7 +212,6 @@ export default {
         if (!isShotcut && event.keyCode == 27) {
           event.preventDefault();
           this.ptm.editOff();
-          // console.log("focus out");
           // console.log("데이터 에디트 모드 종료");
         }
       } else {
@@ -289,14 +335,70 @@ export default {
           this.ptm.selectAllRows();
         }
 
-        // Ctrl + Enter : 새 줄 삽입
+        // Ctrl + z : undo
+        if (
+          event.ctrlKey &&
+          !event.shiftKey &&
+          !event.altKey &&
+          event.keyCode == 90
+        ) {
+          this.ptm.undo();
+        }
+
+        // Ctrl + Shift + z : redo
+        if (
+          event.ctrlKey &&
+          event.shiftKey &&
+          !event.altKey &&
+          event.keyCode == 90
+        ) {
+          this.ptm.redo();
+        }
+
+        // Ctrl + s : commit
+        if (
+          event.ctrlKey &&
+          !event.shiftKey &&
+          !event.altKey &&
+          event.keyCode == 83
+        ) {
+          console.log("commit");
+          let query = this.ptm.commit();
+          alert(query);
+        }
+
+        // Ctrl + r : cancle
+        if (
+          event.ctrlKey &&
+          !event.shiftKey &&
+          !event.altKey &&
+          event.keyCode == 82
+        ) {
+          this.ptm.cancle();
+          alert("transaction cancle");
+        }
+
+        // Ctrl + Enter : 현제 셀의 다음 줄에 새 줄 삽입
         if (
           event.ctrlKey &&
           !event.shiftKey &&
           !event.altKey &&
           event.keyCode == 13
         ) {
-          // console.log("create new line");
+          let targetRowidx = parseInt(this.ptm.getDatumPoint().rowidx) + 1;
+          this.ptm.insert(targetRowidx);
+          this.ptm.arrowDown();
+        }
+
+        // Ctrl + Shift + Enter : 현재 셀의 이전 줄에 새 줄 삽입
+        if (
+          event.ctrlKey &&
+          event.shiftKey &&
+          !event.altKey &&
+          event.keyCode == 13
+        ) {
+          let targetRowidx = this.ptm.getDatumPoint().rowidx;
+          this.ptm.insert(targetRowidx);
         }
 
         // Shift + Enter : 현재 셀 데이터 복사하여 추가
@@ -316,6 +418,16 @@ export default {
           !event.altKey &&
           event.keyCode == 46
         ) {
+          let selectedSectionRowidxList = this.ptm.getSelectedSectionRowidxList();
+          // let targetRowidx = this.ptm.getDatumPoint().rowidx;
+          this.ptm.beginTransaction();
+          for (let idx in selectedSectionRowidxList) {
+            let rowidx = selectedSectionRowidxList[idx];
+            if (!this.ptm.isInsert(rowidx)) this.ptm.arrowDown();
+            this.ptm.delete(rowidx);
+          }
+          this.ptm.endTransaction();
+
           // console.log("선택된 셀 삭제");
         }
 
@@ -390,10 +502,11 @@ export default {
     },
 
     copyToClipboard() {
-      // console.log(`@@@@@@@@@@@@@@@@@@@@ [ copy to clipboard ]`);
+      console.log(`@@@@@@@@@@@@@@@@@@@@ [ copy to clipboard ]`);
       let dummy = document.createElement("textarea");
       document.body.appendChild(dummy);
       dummy.value = this.ptm.getSelectAreaDataToString();
+      console.log(dummy.value);
       dummy.select();
       document.execCommand("copy");
       // alert(`${data.length} rows copy success.`);
@@ -404,40 +517,34 @@ export default {
       if (this.ptm.isEditMode()) return 0;
       // console.log(`@@@@@@@@@@@@@@@@@@@@ [ paste from clipboard ]`);
       let plainData = event.clipboardData.getData("text/plain");
-      this.drawItems = this.ptm.refresh("pasteFromClipboard");
-      this.ptm.clipboardDataToUpdate(plainData);
-      return 0;
-      let editCell = this.ptm.getEditCell();
-      console.log(editCell);
+      let clipboardDataList = this.ptm.clipboardDataIntoArray(plainData);
 
-      let rows = plainData.toString().split("\n");
-
-      rows.pop(); // 클립보드 복사 후 맨 마지막 열의 개행문자(\n)로 인해 생기는 빈 열을 제거
-
-      let lastRowidx = 0;
-      let lastColidx = 0;
-      for (let ridx in rows) {
-        // console.log(rows[ridx]);
-        let row = rows[ridx].split("\t");
-        let rowidx = parseInt(editCell.rowidx) + parseInt(ridx);
-        if (rowidx >= this.ptm.getView().length) break;
-        lastRowidx = lastRowidx < rowidx ? rowidx : lastRowidx;
-        for (let cidx in row) {
-          let data = row[cidx];
-          let colidx = parseInt(editCell.colidx) + parseInt(cidx);
-          // console.log(`this.ptm.getHeaders().length : colidx , ${this.ptm.getHeaders().length} : ${colidx}`);
-          if (colidx >= this.ptm.getHeaders().length) break;
-          lastColidx = lastColidx < colidx ? colidx : lastColidx;
-          this.ptm.update(rowidx, colidx, data);
+      let datumPoint = this.ptm.getDatumPoint();
+      let limitRowIndex = this.ptm.getView().length - 1;
+      let limitColIndex = this.ptm.getHeaders().length - 1;
+      let inInsertRows = false;
+      this.ptm.beginTransaction();
+      for (let ridx in clipboardDataList) {
+        let clipboardRow = clipboardDataList[ridx];
+        let targetRowidx = parseInt(datumPoint.rowidx) + parseInt(ridx);
+        if (targetRowidx > parseInt(limitRowIndex)) break;
+        if (this.ptm.isInsert(targetRowidx)) inInsertRows = true;
+        if (inInsertRows && !this.ptm.isInsert(targetRowidx))
+          this.ptm.insert(targetRowidx);
+        // if (this.ptm.isInsert(targetRowidx)) this.ptm.insert(targetRowidx);
+        for (let cidx in clipboardRow) {
+          let clipboardData = clipboardRow[cidx];
+          let targetColidx = parseInt(datumPoint.colidx) + parseInt(cidx);
+          if (targetColidx > parseInt(limitColIndex)) break;
+          this.ptm.update(
+            targetRowidx,
+            targetColidx,
+            this.ptm.getLastestVersionData(targetRowidx, targetColidx),
+            clipboardData
+          );
         }
       }
-      this.ptm.mouseClick(editCell.rowidx, editCell.colidx);
-      this.ptm.moveCell(
-        lastColidx - editCell.colidx,
-        lastRowidx - editCell.rowidx,
-        false,
-        true
-      );
+      this.ptm.endTransaction();
       this.drawItems = this.ptm.refresh("pasteFromClipboard");
     },
 
@@ -491,6 +598,18 @@ export default {
 .selected {
   background-color: #d9ffe2;
   border: 1px solid #82c491 !important;
+}
+
+.delete {
+  background-color: #ffb0b0;
+}
+
+.insert {
+  background-color: #b0c5ff;
+}
+
+.update {
+  background-color: #fffbb0;
 }
 
 .mouseover {
