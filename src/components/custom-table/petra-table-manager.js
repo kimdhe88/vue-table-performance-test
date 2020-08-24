@@ -22,6 +22,7 @@ export default class PetraTable {
 
   setItems(givenItems) {
     this.pto.setItems(givenItems);
+    this.pto.cancle();
   }
 
   setHeaders(givenHeaders) {
