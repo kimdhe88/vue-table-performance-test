@@ -39,7 +39,7 @@ const sort = async (data = Array, propertyName = String, isAscending = true) => 
 
 const SORT_TYPE = { NOT: "not-sorted", ASC: "asc-sort", DESC: "desc-sort" };
 const QUERY_TYPE = { INSERT: "insert", UPDATE: "update", DELETE: "delete" };
-const LC_TYPE = { NONE: 0, CREATE: 1, REMOVE: 2, UPDATE: 3 }; //line controll type
+const LC_TYPE = { NONE: 0, CREATE: 1, REMOVE: 2, DELETE: 3, CREATE_UPDATE: 4, UPDATE: 5 }; //line controll type
 
 class Query {
   constructor(type, rowidx, colidx = null, before = null, after = null) {
@@ -82,8 +82,8 @@ class PetraTableObject {
   }
 
   setHeaders(givenHeaders) {
-    console.log("givenHeaders");
-    console.log(givenHeaders);
+    // console.log("givenHeaders");
+    // console.log(givenHeaders);
     this.headers = new Array();
     for (let idx in givenHeaders) {
       this.headers[idx] = new Object();
@@ -120,6 +120,13 @@ class PetraTableObject {
 
   getHeaders() {
     return this.headers;
+  }
+
+  getRedoBuffer() {
+    return this.redoBuffer;
+  }
+  getUndoBuffer() {
+    return this.undoBuffer;
   }
 
   /* operating functions */
@@ -180,14 +187,24 @@ class PetraTableObject {
 
   do() {
     let skipQueryIdx = new Array();
+    let deleteCount = 0;
+    let deleteRowidx = null;
     for (let idx in this.queryBuffer) {
+      if (deleteRowidx && this.queryBuffer[idx].rowidx > deleteRowidx) this.queryBuffer[idx].rowidx = parseInt(this.queryBuffer[idx].rowidx) - parseInt(deleteCount);
       let query = this.queryBuffer[idx];
       if (query.type == QUERY_TYPE.INSERT) {
         this.createEmptyRowToView(query.rowidx);
         query.lcType = LC_TYPE.CREATE;
-      } else if (query.type == QUERY_TYPE.DELETE && this.isInsert(query.rowidx)) {
-        this.deleteRowFromView(query.rowidx);
-        query.lcType = LC_TYPE.REMOVE;
+      } else if (query.type == QUERY_TYPE.UPDATE) {
+        if (!this.wasHistory(query.rowidx)) query.lcType = LC_TYPE.CREATE_UPDATE;
+        else if (this.wasHistory(query.rowidx) && !this.isUpdate(query.rowidx, query.data.colidx)) query.lcType = LC_TYPE.UPDATE;
+      } else if (query.type == QUERY_TYPE.DELETE) {
+        if (this.isInsert(query.rowidx)) {
+          this.deleteRowFromView(query.rowidx);
+          deleteCount++;
+          deleteRowidx = query.rowidx;
+          query.lcType = LC_TYPE.REMOVE;
+        } else if (!this.wasHistory(query.rowidx)) query.lcType = LC_TYPE.DELETE;
       }
 
       if (query.type == QUERY_TYPE.DELETE && this.isDelete(query.rowidx)) skipQueryIdx.push(idx);
@@ -203,7 +220,7 @@ class PetraTableObject {
   }
 
   undo() {
-    console.log("undo");
+    // console.log("undo");
     let queryBuffer = this.redoBuffer.pop();
     let reverseQueryBuffer = new Array();
 
@@ -227,13 +244,8 @@ class PetraTableObject {
     let queryBuffer = this.undoBuffer.pop();
     for (let idx in queryBuffer) {
       let query = queryBuffer[idx];
-      if (query.type == QUERY_TYPE.INSERT) {
-        this.createEmptyRowToView(query.rowidx);
-        query.lcType = LC_TYPE.CREATE;
-      } else if (query.type == QUERY_TYPE.DELETE && this.isInsert(query.rowidx)) {
-        this.deleteRowFromView(query.rowidx);
-        query.lcType = LC_TYPE.REMOVE;
-      }
+      if (query.type == QUERY_TYPE.INSERT && query.lcType == LC_TYPE.CREATE) this.createEmptyRowToView(query.rowidx);
+      else if (query.type == QUERY_TYPE.DELETE && query.lcType == LC_TYPE.REMOVE) this.deleteRowFromView(query.rowidx);
       this.reflectDoToDmlStates(query);
     }
     this.redoBuffer.push(queryBuffer);
@@ -261,16 +273,13 @@ class PetraTableObject {
       if (query.lcType == LC_TYPE.CREATE) this.increaseRowidxInDmlStatus(query.rowidx);
       this.dmlStates[query.rowidx] = new dmlState(QUERY_TYPE.INSERT);
     } else if (query.type == QUERY_TYPE.UPDATE) {
-      if (_.isUndefined(this.dmlStates[query.rowidx])) {
-        this.dmlStates[query.rowidx] = new dmlState(QUERY_TYPE.UPDATE);
-        query.lcType = LC_TYPE.CREATE;
-      }
+      if (_.isUndefined(this.dmlStates[query.rowidx])) this.dmlStates[query.rowidx] = new dmlState(QUERY_TYPE.UPDATE);
       this.dmlStates[query.rowidx].data[query.data.colidx] = query.data.after;
     } else if (query.type == QUERY_TYPE.DELETE) {
       if (this.isInsert(query.rowidx)) this.decreaseRowidxInDmlStatus(query.rowidx);
       else {
         if (_.isUndefined(this.dmlStates[query.rowidx])) this.dmlStates[query.rowidx] = new dmlState(QUERY_TYPE.DELETE);
-        else this.dmlStates[query.rowidx].type = QUERY_TYPE.DELETE;
+        else this.dmlStates[query.rowidx].type = QUERY_TYPE.DELETE; // get cell type 에서 우선순위를 위해 덮어씀
       }
     }
   }
@@ -279,16 +288,17 @@ class PetraTableObject {
     if (query.type == QUERY_TYPE.INSERT) {
       if (query.lcType == LC_TYPE.CREATE) this.decreaseRowidxInDmlStatus(query.rowidx);
     } else if (query.type == QUERY_TYPE.UPDATE) {
-      // if (_.isUndefined(this.dmlStates[query.rowidx])) this.dmlStates[query.rowidx] = new dmlState(QUERY_TYPE.UPDATE);
       this.dmlStates[query.rowidx].data[query.data.colidx] = query.data.before;
-      if (query.lcType == LC_TYPE.CREATE) delete this.dmlStates[query.rowidx];
+
+      if (query.lcType == LC_TYPE.CREATE_UPDATE) delete this.dmlStates[query.rowidx];
+      else if (query.lcType == LC_TYPE.UPDATE) delete this.dmlStates[query.rowidx].data[query.data.colidx];
     } else if (query.type == QUERY_TYPE.DELETE) {
       if (query.lcType == LC_TYPE.REMOVE) {
         this.increaseRowidxInDmlStatus(query.rowidx);
         this.dmlStates[query.rowidx] = new dmlState(QUERY_TYPE.INSERT);
       } else {
         if (Object.keys(this.dmlStates[query.rowidx].data).length > 0) this.dmlStates[query.rowidx].type = QUERY_TYPE.UPDATE;
-        else delete this.dmlStates[query.rowidx]; // 일반 데이터 삭제였을 때 삭제정보를 state에서 제거
+        if (query.lcType == LC_TYPE.DELETE) delete this.dmlStates[query.rowidx]; // 일반 데이터 삭제였을 때 삭제정보를 state에서 제거
       }
     }
   }
@@ -320,39 +330,55 @@ class PetraTableObject {
   }
 
   commit() {
-    let query = "";
+    // let query = "";
+    // for (let idx in this.dmlStates) {
+    //   let rowidx = idx;
+    //   let dmlState = this.dmlStates[idx];
+    //   query += this.buildQuery(rowidx, dmlState) + "\n";
+    // }
+
+    while (this.redoBuffer.length > 0) this.undo();
+    this.clearUndoBuffer();
+    this.clearDmlStates();
+    // return query;
+  }
+
+  buidlQueryies() {
+    let queryList = new Array();
     for (let idx in this.dmlStates) {
       let rowidx = idx;
       let dmlState = this.dmlStates[idx];
-      query += this.buildQuery(rowidx, dmlState) + "\n";
+      queryList.push(this.buildQuery(rowidx, dmlState));
       // let dmlState = this.dmlStates[idx]
     }
-    return query;
+    return queryList;
   }
 
   buildQuery(rowidx, dmlState) {
     let query = "";
     // let columns = new Array();
     // for (let idx in this.headers) columns.push(this.headers[idx].name);
-    let queryText = "";
-    let valueText = "";
-    console.log(`rowidx : ${rowidx}, dmlState.type : ${dmlState.type}`);
-
-    if (dmlState.type == QUERY_TYPE.INSERT) {
-      for (let colidx in dmlState.data) {
-        console.log(`colidx : ${colidx}`);
-        console.log(`this.headers[colidx].name : ${this.headers[colidx].name}`);
-        console.log(`this.getLastestVersionData(rowidx, colidx) : ${this.getLastestVersionData(rowidx, colidx)}`);
-        queryText += this.headers[colidx].name + ",";
-        valueText += this.getLastestVersionData(rowidx, colidx) + ",";
-      }
-      query = `insert into schema.table(${queryText}) values(${valueText});`;
+    let columnList = new Array();
+    let valueList = new Array();
+    let updatedColumnList = new Array();
+    let updatedValueList = new Array();
+    // console.log(`rowidx : ${rowidx}, dmlState.type : ${dmlState.type}`);
+    for (let colidx in this.headers) {
+      columnList.push(this.headers[colidx].name);
+      valueList.push(this.getLastestVersionData(rowidx, colidx));
     }
+    for (let colidx in dmlState.data) {
+      updatedColumnList.push(this.headers[colidx].name);
+      updatedValueList.push(this.getLastestVersionData(rowidx, colidx));
+    }
+    if (dmlState.type == QUERY_TYPE.INSERT) query = `INSERT : ${rowidx} : [${columnList}], [${valueList}]`;
+    else if (dmlState.type == QUERY_TYPE.UPDATE) query = `UPDATE : ${rowidx} : [${updatedColumnList}], [${updatedValueList}]`;
+    else if (dmlState.type == QUERY_TYPE.DELETE) query = `DELETE : ${rowidx} : [${columnList}], [${valueList}]`;
     return query;
   }
 
   cancle() {
-    console.log("pto cancle");
+    // console.log("pto cancle");
     while (this.redoBuffer.length > 0) this.undo();
     this.clearUndoBuffer();
   }
@@ -364,6 +390,10 @@ class PetraTableObject {
 
   clearUndoBuffer() {
     while (this.undoBuffer.length > 0) this.undoBuffer.pop();
+  }
+
+  clearDmlStates() {
+    this.dmlStates = new Object();
   }
 
   isInsert(rowidx, colidx) {
@@ -378,6 +408,10 @@ class PetraTableObject {
 
   isDelete(rowidx, colidx) {
     return !_.isUndefined(this.dmlStates[rowidx]) && this.dmlStates[rowidx].type == QUERY_TYPE.DELETE ? true : false;
+  }
+
+  wasHistory(rowidx) {
+    return !_.isUndefined(this.dmlStates[rowidx]) ? true : false;
   }
 }
 

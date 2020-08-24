@@ -29,12 +29,12 @@ export default class PetraTable {
   }
 
   editOn() {
-    console.log("editOn");
+    // console.log("editOn");
     this.mode = MODE.EDITTING;
   }
 
   editOff() {
-    console.log("editOff");
+    // console.log("editOff");
     this.mode = MODE.NONE;
   }
 
@@ -123,11 +123,13 @@ export default class PetraTable {
       for (let idx in headers) if (idx != colidx) headers[idx].sortStatus = SORT_TYPE.NOT;
       headers[colidx].sortStatus = SORT_TYPE.DESC;
     }
+    this.pto.cancle();
   }
 
   async search(searchText) {
     await this.pto.search(searchText);
     this.moveDisplayPosition(0);
+    this.pto.cancle();
   }
 
   // 셀 이동 관련 함수들
@@ -292,7 +294,7 @@ export default class PetraTable {
       }
       rows.push(row);
     }
-    console.log(rows);
+    // console.log(rows);
     return rows;
   }
 
@@ -315,7 +317,7 @@ export default class PetraTable {
         if (prevWord.charCodeAt(0) == 34) inWord = !inWord;
       }
 
-      console.log(plainText[idx].charCodeAt(0));
+      // console.log(plainText[idx].charCodeAt(0));
       prevWord = word;
     }
   }
@@ -377,5 +379,17 @@ export default class PetraTable {
 
   getSelectedSectionRowidxList() {
     return this.ss.getSelectedSectionRowidxList();
+  }
+
+  buildQueryies() {
+    return this.pto.buidlQueryies();
+  }
+
+  getRedoBuffer() {
+    return this.pto.getRedoBuffer();
+  }
+
+  getUndoBuffer() {
+    return this.pto.getUndoBuffer();
   }
 }

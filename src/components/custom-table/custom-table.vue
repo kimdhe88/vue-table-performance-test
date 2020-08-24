@@ -1,51 +1,97 @@
 <template>
-  <div class="custom-table" @mousewheel="mousewheel">
-    <!-- <v-chip outlined color="info">{{drawCount}} / {{fetchCount}} rows</v-chip> -->
-    <v-text-field
-      v-show="search"
-      v-model="searchText"
-      v-on:keyup.enter="tableSearch(searchText)"
-      @click="focusOut()"
-      label="검색"
-    ></v-text-field>
-    <table border="1px" v-show="drawHeaders.length > 0" :draggable="false">
-      <thead>
-        <div>
-          <tr class="non-data">
-            <th v-show="showNo">{{ "No." }}</th>
-            <th
-              v-for="(header, colidx) in drawHeaders"
-              v-bind:key="colidx"
-              @click="columnOrder(colidx)"
-            >{{ header.name }}</th>
-          </tr>
-        </div>
-      </thead>
-      <tbody @mousedown="focusOn()">
-        <div v-for="(drawItem, rowidx) in drawItems" v-bind:key="rowidx">
-          <tr v-if="drawItem? true : false">
-            <td v-show="showNo" class="non-data">{{ parseInt(rowidx) + 1 }}</td>
-            <td
-              :class="item.cellType"
-              @mousedown="mouseClick(rowidx, colidx, $event)"
-              @dblclick="doubleClick(rowidx, colidx, $event)"
-              @mouseover="mouseMove(rowidx, colidx)"
-              @mouseup="mouseUp"
-              v-for="(item, colidx) in drawItem"
-              v-bind:key="colidx"
-            >
-              <div v-if="item.cellType == 'edit' ? true : false">
-                <label class="wrapper">
-                  <input :id="`${rowidx}-${colidx}`" type="text" v-model="editText" />
-                </label>
-              </div>
-              <div v-else>{{item.value}}</div>
-            </td>
-          </tr>
-        </div>
-      </tbody>
-    </table>
-  </div>
+  <v-container>
+    <v-layout class="custom-table" @mousewheel="mousewheel">
+      <v-row>
+        <!-- <v-chip outlined color="info">{{drawCount}} / {{fetchCount}} rows</v-chip> -->
+        <v-text-field
+          v-show="search"
+          v-model="searchText"
+          v-on:keyup.enter="tableSearch(searchText)"
+          @click="focusOut()"
+          label="검색"
+        ></v-text-field>
+        <table border="1px" v-show="drawHeaders.length > 0" :draggable="false">
+          <thead>
+            <div>
+              <tr class="non-data">
+                <th v-show="showNo">{{ "No." }}</th>
+                <th
+                  v-for="(header, colidx) in drawHeaders"
+                  v-bind:key="colidx"
+                  @click="columnOrder(colidx)"
+                >{{ header.name }}</th>
+              </tr>
+            </div>
+          </thead>
+          <tbody @mousedown="focusOn()">
+            <div v-for="(drawItem, rowidx) in drawItems" v-bind:key="rowidx">
+              <tr v-if="drawItem? true : false">
+                <td v-show="showNo" class="non-data">{{ parseInt(rowidx) + 1 }}</td>
+                <td
+                  :class="item.cellType"
+                  @mousedown="mouseClick(rowidx, colidx, $event)"
+                  @dblclick="doubleClick(rowidx, colidx, $event)"
+                  @mouseover="mouseMove(rowidx, colidx)"
+                  @mouseup="mouseUp"
+                  v-for="(item, colidx) in drawItem"
+                  v-bind:key="colidx"
+                >
+                  <div v-if="item.cellType == 'edit' ? true : false">
+                    <label class="wrapper">
+                      <input :id="`${rowidx}-${colidx}`" type="text" v-model="editText" />
+                    </label>
+                  </div>
+                  <div v-else>{{item.value}}</div>
+                </td>
+              </tr>
+            </div>
+          </tbody>
+        </table>
+      </v-row>
+    </v-layout>
+    <v-layout>
+      <v-col class="log-buffers">
+        <v-row>
+          <v-badge overlap color="green" :content="redoBuffer.length > 0 ? redoBuffer.length : '0'">
+            <v-icon large>mdi-redo</v-icon>
+          </v-badge>
+        </v-row>
+        <v-row
+          style="font-size: 10px; text-align: left"
+          v-for="(redo, idx) in redoBuffer"
+          :key="idx"
+        >{{`redo ID : ${idx} : `}}{{redo}}</v-row>
+      </v-col>
+      <v-col>
+        <v-row>
+          <v-badge overlap color="red" :content="undoBuffer.length > 0 ? undoBuffer.length : '0'">
+            <v-icon large>mdi-undo</v-icon>
+          </v-badge>
+        </v-row>
+        <v-row
+          style="font-size: 10px; text-align: left"
+          v-for="(undo, idx) in undoBuffer"
+          :key="idx"
+        >{{undo}}</v-row>
+      </v-col>
+    </v-layout>
+    <v-layout>
+      <v-dialog v-model="dialog" width="600px">
+        <v-card>
+          <v-card-title>DML 이력</v-card-title>
+          <v-card-text>
+            <v-col>
+              <v-row
+                style="font-size: 10px; text-align: left"
+                v-for="(dml, idx) in dmlText"
+                :key="idx"
+              >{{dml}}</v-row>
+            </v-col>
+          </v-card-text>
+        </v-card>
+      </v-dialog>
+    </v-layout>
+  </v-container>
 </template>
 
 <script>
@@ -74,19 +120,28 @@ export default {
       isEdit: 0,
       searchText: "",
       editText: "",
+      dmlText: [],
+      undoBuffer: [],
+      redoBuffer: [],
+      dialog: false,
     };
   },
 
   watch: {
     headers: function (newHeaders) {
-      console.log("watch headers");
+      // console.log("watch headers");
       this.ptm.setHeaders(newHeaders);
       this.drawHeaders = this.ptm.getHeaders();
     },
     items: function (newItems) {
-      console.log("watch items");
+      // console.log("watch items");
       this.ptm.setItems(newItems);
       this.drawItems = this.ptm.refresh();
+    },
+    drawItems: function (newItems) {
+      // this.dmlText = this.ptm.buildQueryies();
+      this.undoBuffer = this.ptm.getUndoBuffer();
+      this.redoBuffer = this.ptm.getRedoBuffer();
     },
   },
 
@@ -100,7 +155,7 @@ export default {
       this.focus = true;
     },
     focusOut() {
-      console.log("focus out!");
+      // console.log("focus out!");
       this.focus = false;
     },
 
@@ -362,9 +417,11 @@ export default {
           !event.altKey &&
           event.keyCode == 83
         ) {
-          console.log("commit");
+          this.dialog = true;
+          this.dmlText = this.ptm.buildQueryies();
+
           let query = this.ptm.commit();
-          alert(query);
+          // alert("commit");
         }
 
         // Ctrl + r : cancle
@@ -456,10 +513,13 @@ export default {
       // console.log(`newChar : ${newChar}`);
       let editCell = this.ptm.getDatumPoint();
       let cellid = `${editCell.rowidx}-${editCell.colidx}`;
-      console.log(`cellid : ${cellid}`);
+      // console.log(`cellid : ${cellid}`);
       this.ptm.editOn();
       this.drawItems = this.ptm.refresh();
-      this.editText = this.ptm.getViewData(editCell.rowidx, editCell.colidx);
+      this.editText = this.ptm.getLastestVersionData(
+        editCell.rowidx,
+        editCell.colidx
+      );
 
       while (!document.getElementById(cellid)) {
         await this.sleep(1);
@@ -502,11 +562,11 @@ export default {
     },
 
     copyToClipboard() {
-      console.log(`@@@@@@@@@@@@@@@@@@@@ [ copy to clipboard ]`);
+      // console.log(`@@@@@@@@@@@@@@@@@@@@ [ copy to clipboard ]`);
       let dummy = document.createElement("textarea");
       document.body.appendChild(dummy);
       dummy.value = this.ptm.getSelectAreaDataToString();
-      console.log(dummy.value);
+      // console.log(dummy.value);
       dummy.select();
       document.execCommand("copy");
       // alert(`${data.length} rows copy success.`);
@@ -564,14 +624,12 @@ export default {
   },
 
   mounted() {
-    console.log("mounted()");
-
-    console.log("keydown listener added!!! @@@@@@@@@@@@@@@@@@@@@@@@@");
+    // console.log("mounted()");
+    // console.log("keydown listener added!!! @@@@@@@@@@@@@@@@@@@@@@@@@");
     window.addEventListener("keydown", (event) => {
       this.keyboardControlls(event);
     });
-
-    console.log("paste listener added!!! @@@@@@@@@@@@@@@@@@@@@@@@@");
+    // console.log("paste listener added!!! @@@@@@@@@@@@@@@@@@@@@@@@@");
     window.addEventListener("paste", (event) => {
       this.pasteFromClipboard(event);
     });
@@ -657,5 +715,9 @@ input {
   left: 0;
   width: 100%;
   height: 100%;
+}
+.log-buffers {
+  min-height: 100px;
+  max-height: 100px;
 }
 </style>
